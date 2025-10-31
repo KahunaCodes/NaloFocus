@@ -8,8 +8,14 @@
 import Foundation
 @preconcurrency import EventKit
 
+/// Box to wrap non-Sendable EventKit types
+struct UncheckedSendableBox<T>: @unchecked Sendable {
+    let value: T
+}
+
 /// Manages EventKit reminders for sprint scheduling
-final class ReminderManager: ReminderManagerProtocol, @unchecked Sendable {
+@MainActor
+final class ReminderManager: ReminderManagerProtocol {
     private let eventStore = EKEventStore()
     private var breaksCalendar: EKCalendar?
 
@@ -39,8 +45,9 @@ final class ReminderManager: ReminderManagerProtocol, @unchecked Sendable {
 
         return try await withCheckedThrowingContinuation { continuation in
             eventStore.fetchReminders(matching: predicate) { reminders in
-                let safeReminders = reminders ?? []
-                continuation.resume(with: .success(safeReminders))
+                // Wrap in unchecked sendable box to work around EventKit's lack of Sendable conformance
+                let boxedReminders = UncheckedSendableBox(value: reminders ?? [])
+                continuation.resume(returning: boxedReminders.value)
             }
         }
     }

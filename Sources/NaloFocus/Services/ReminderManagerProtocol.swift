@@ -9,6 +9,7 @@ import Foundation
 @preconcurrency import EventKit
 
 /// Protocol for managing EventKit reminders
+@MainActor
 protocol ReminderManagerProtocol {
     /// Request access to Reminders
     func requestAccess() async throws -> Bool

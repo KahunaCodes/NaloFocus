@@ -16,7 +16,7 @@ enum ReminderCategory: String, CaseIterable {
 }
 
 /// Organized reminder structure with categorization
-struct CategorizedReminders {
+struct CategorizedReminders: @unchecked Sendable {
     var pastDue: [EKReminder] = []
     var noTimeSet: [EKReminder] = []
     var scheduled: [EKReminder] = []

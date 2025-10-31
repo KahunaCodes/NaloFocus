@@ -15,7 +15,7 @@ protocol TimeCalculatorProtocol {
 }
 
 /// Calculates sprint timings and generates timeline previews
-class TimeCalculator: TimeCalculatorProtocol {
+final class TimeCalculator: TimeCalculatorProtocol, @unchecked Sendable {
     private let formatter = DateFormatter()
 
     init() {

@@ -8,7 +8,7 @@
 import Foundation
 
 /// Represents a complete sprint session with multiple tasks
-struct SprintSession {
+struct SprintSession: Sendable {
     var tasks: [SprintTask] = []
     var startTime: Date = Date()
 

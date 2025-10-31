@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 
 /// Centralized dependency injection container
+@MainActor
 final class ServiceContainer: @unchecked Sendable {
     static let shared = ServiceContainer()
 
@@ -20,11 +21,13 @@ final class ServiceContainer: @unchecked Sendable {
 
 // MARK: - Environment Injection
 
-struct ServiceEnvironmentKey: EnvironmentKey {
+struct ServiceEnvironmentKey: @preconcurrency EnvironmentKey {
+    @MainActor
     static let defaultValue = ServiceContainer.shared
 }
 
 extension EnvironmentValues {
+    @MainActor
     var services: ServiceContainer {
         get { self[ServiceEnvironmentKey.self] }
         set { self[ServiceEnvironmentKey.self] = newValue }

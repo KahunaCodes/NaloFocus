@@ -9,7 +9,7 @@ import Foundation
 @preconcurrency import EventKit
 
 /// Represents a single task in a sprint session
-struct SprintTask: Identifiable {
+struct SprintTask: Identifiable, @unchecked Sendable {
     let id = UUID()
     var reminder: EKReminder?
     var duration: TimeInterval

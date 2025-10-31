@@ -4,41 +4,52 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-NaloFocus is a lightweight macOS menu bar application that transforms unscheduled Reminders into time-blocked work sprints. It's built with Swift Package Manager (not Xcode project), using SwiftUI and EventKit for native macOS integration.
+NaloFocus is a lightweight macOS menu bar application that transforms unscheduled Reminders into time-blocked work sprints. Built with **Swift Package Manager** (NOT Xcode project), using SwiftUI and EventKit for native macOS integration.
 
-## Build and Development Commands
+**Key Point**: This is a Swift Package executable, not an Xcode project. Use `swift` commands, not `xcodebuild`.
 
-### Building
+## Quick Start Commands
+
 ```bash
-# Build the project
-swift build
+# Build and run the app
+swift run NaloFocus
+
+# Run tests
+swift test
 
 # Build for release
 swift build -c release
 
-# Clean build
-swift build --clean
+# Clean and rebuild (fixes most build issues)
+swift package clean && swift build
 ```
 
-### Testing
-```bash
-# Run all tests
-swift test
+## Common Development Tasks
 
-# Run tests with coverage
+### Fix Build Errors
+```bash
+# Clean all build artifacts
+swift package clean
+rm -rf .build/
+
+# Reset package dependencies
+swift package reset
+
+# Update dependencies (if any added)
+swift package update
+```
+
+### Testing Specific Components
+```bash
+# Test only TimeCalculator
+swift test --filter TimeCalculatorTests
+
+# Test with verbose output for debugging
+swift test --verbose
+
+# Generate coverage report
 swift test --enable-code-coverage
-
-# Run specific test
-swift test --filter NaloFocusTests.TestClassName
-```
-
-### Running
-```bash
-# Run the application
-swift run NaloFocus
-
-# Run with specific configuration
-swift run NaloFocus -c debug
+xcrun llvm-cov report .build/debug/NaloFocusPackageTests.xctest/Contents/MacOS/NaloFocusPackageTests -instr-profile .build/debug/codecov/default.profdata
 ```
 
 ## Architecture Overview
@@ -87,41 +98,146 @@ Sources/NaloFocus/
     └── MenuBarContentView.swift # Main UI
 ```
 
-## Important Implementation Notes
+## Critical Implementation Details
 
-### Swift Concurrency
-- The codebase uses Swift 6 concurrency with `@MainActor` and `async/await`
-- EventKit operations are wrapped with `withCheckedThrowingContinuation`
-- Be mindful of actor isolation when modifying services
+### ⚠️ Swift 6 Concurrency Issues & Solutions
 
-### EventKit Permissions
-- App requires Reminders access permission (handled via Info.plist)
-- Permission flow is triggered on first launch
-- Handles multiple reminder accounts (iCloud, Exchange, Local)
+**Problem**: Actor isolation errors in ServiceContainer
+```swift
+// ❌ WRONG - Causes "main actor-isolated default value in nonisolated context"
+lazy var reminderManager: ReminderManagerProtocol = ReminderManager()
+```
 
-### UI State Management
-- ViewModels use `@Published` properties for UI updates
-- AppStateCoordinator manages global app state
-- Form resets completely after successful sprint creation
+**Solution**: Mark ServiceContainer or its properties with proper actor annotations
+```swift
+// ✅ CORRECT - Add @MainActor to class or nonisolated to properties
+@MainActor
+final class ServiceContainer { ... }
+// OR
+nonisolated lazy var reminderManager: ReminderManagerProtocol = ReminderManager()
+```
 
-### Known Compilation Issues
-- Swift 6 strict concurrency checking may flag actor isolation issues
-- ServiceContainer lazy initialization needs proper actor annotation
-- EventKit callbacks require careful handling with continuations
+**Problem**: EventKit callbacks with continuations
+```swift
+// ❌ WRONG - Can cause "value passed as strongly transferred parameter" error
+continuation.resume(returning: reminders ?? [])
+```
 
-## Testing Strategy
+**Solution**: Ensure proper sendability
+```swift
+// ✅ CORRECT - Use proper async wrapper
+return try await withCheckedThrowingContinuation { continuation in
+    eventStore.fetchReminders(matching: predicate) { reminders in
+        let safeReminders = reminders ?? []
+        continuation.resume(returning: safeReminders)
+    }
+}
+```
 
-- Unit tests focus on TimeCalculator and business logic
-- Mock protocols exist for ReminderManagerProtocol and TimeCalculatorProtocol
-- UI testing not yet implemented but planned for sprint creation flow
-- Target coverage: >80% for business logic
+### EventKit Integration Patterns
 
-## Current Development Status
+**Permissions**: Always check before operations
+```swift
+// Required in Info.plist
+NSRemindersUsageDescription: "NaloFocus needs access to update your reminders"
 
-The project is in active development (Day 1-2 of 16-day sprint):
-- Foundation phase completed with basic infrastructure
-- EventKit integration implemented
-- Core models and services in place
-- UI implementation in progress
+// Check permission before any EventKit operation
+guard try await reminderManager.requestAccess() else {
+    throw ReminderError.accessDenied
+}
+```
 
-Refer to `PHASE_PLAN.md` for detailed progress tracking and `docs/DECISIONS.md` for architectural rationale.
+**Multiple Accounts**: The app handles iCloud, Exchange, and Local reminder accounts automatically via EventKit's default calendar selection.
+
+### UI State Management Patterns
+
+**ViewModel Pattern**: All ViewModels should be `@MainActor` annotated
+```swift
+@MainActor
+final class SprintDialogViewModel: ObservableObject {
+    @Published var tasks: [SprintTask] = []
+    // ...
+}
+```
+
+**Form Reset**: After sprint creation, reset all state to defaults
+```swift
+private func resetForm() {
+    tasks = []
+    selectedCount = 1
+    showSuccessMessage = false
+    // Reset all other properties
+}
+```
+
+## Testing Best Practices
+
+### Creating Mock Services
+```swift
+// Mock for testing without EventKit
+final class MockReminderManager: ReminderManagerProtocol {
+    var shouldFailAccess = false
+    var mockReminders: [EKReminder] = []
+
+    func requestAccess() async throws -> Bool {
+        return !shouldFailAccess
+    }
+
+    func fetchReminders() async throws -> [EKReminder] {
+        return mockReminders
+    }
+    // Implement other protocol methods...
+}
+```
+
+### Testing ViewModels
+```swift
+@MainActor
+final class SprintDialogViewModelTests: XCTestCase {
+    func testSprintCreation() async throws {
+        let mockManager = MockReminderManager()
+        let viewModel = SprintDialogViewModel(reminderManager: mockManager)
+        // Test logic...
+    }
+}
+```
+
+## Common Pitfalls to Avoid
+
+1. **Don't use Xcode project commands** - This is a Swift Package, not an .xcodeproj
+2. **Don't forget @MainActor** - ViewModels and UI-related code need proper actor annotation
+3. **Don't skip permission checks** - Always verify EventKit access before operations
+4. **Don't ignore build warnings** - Swift 6 concurrency warnings often become errors
+5. **Don't modify EventKit objects directly** - Always use proper save/commit patterns
+
+## Debugging Tips
+
+```bash
+# View detailed build errors
+swift build -v
+
+# Check Swift version
+swift --version
+
+# List all available targets
+swift package describe
+
+# Clean everything when builds are acting strange
+rm -rf .build/ .swiftpm/ Package.resolved
+swift build
+```
+
+## Key Files for Context
+
+- **`PHASE_PLAN.md`**: Current development progress and upcoming tasks
+- **`docs/DECISIONS.md`**: Architectural decisions and rationale
+- **`docs/RISKS.md`**: Known risks and mitigation strategies
+- **`docs/DAILY_PROGRESS.md`**: Daily development updates and blockers
+
+## Next Steps When Starting Work
+
+1. Check current build status: `swift build`
+2. Review `PHASE_PLAN.md` for current sprint goals
+3. Run tests to ensure baseline: `swift test`
+4. Check for any new decisions in `docs/DECISIONS.md`
+5. Look for blockers in latest `docs/DAILY_PROGRESS.md` entry
