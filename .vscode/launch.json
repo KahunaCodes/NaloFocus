@@ -1,0 +1,22 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:NaloFocus}",
+            "name": "Debug NaloFocus",
+            "program": "${workspaceFolder:NaloFocus}/.build/debug/NaloFocus",
+            "preLaunchTask": "swift: Build Debug NaloFocus"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:NaloFocus}",
+            "name": "Release NaloFocus",
+            "program": "${workspaceFolder:NaloFocus}/.build/release/NaloFocus",
+            "preLaunchTask": "swift: Build Release NaloFocus"
+        }
+    ]
+}
