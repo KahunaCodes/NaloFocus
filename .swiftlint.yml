@@ -1,0 +1,177 @@
+# SwiftLint configuration for NaloFocus
+# A lightweight macOS menu bar application
+
+# Paths to include
+included:
+  - Sources
+  - Tests
+
+# Paths to exclude
+excluded:
+  - .build
+  - Package.swift
+  - .swiftpm
+
+# Disable analyzer rules due to SourceKit issues
+# analyzer_rules:
+#   - unused_declaration
+#   - unused_import
+
+# Enabled rules
+opt_in_rules:
+  # Performance
+  - contains_over_filter_count
+  - contains_over_filter_is_empty
+  - contains_over_first_not_nil
+  - contains_over_range_nil_comparison
+  - empty_collection_literal
+  - empty_count
+  - empty_string
+  - first_where
+  - flatmap_over_map_reduce
+  - last_where
+  - reduce_into
+
+  # Idiomatic
+  - anonymous_argument_in_multiline_closure
+  - convenience_type
+  - enum_case_associated_values_count
+  - fatal_error_message
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - pattern_matching_keywords
+  - prefer_self_type_over_type_of_self
+  - redundant_nil_coalescing
+  - redundant_type_annotation
+  - static_operator
+  - toggle_bool
+  - unavailable_function
+
+  # Style
+  - attributes
+  - closure_end_indentation
+  - closure_spacing
+  - collection_alignment
+  - literal_expression_end_indentation
+  - modifier_order
+  - multiline_arguments
+  - multiline_function_chains
+  - multiline_literal_brackets
+  - multiline_parameters
+  - operator_usage_whitespace
+  - prefer_zero_over_explicit_init
+  - sorted_imports
+  - trailing_closure
+  - unneeded_parentheses_in_closure_argument
+  - vertical_parameter_alignment_on_call
+  - vertical_whitespace_closing_braces
+  - vertical_whitespace_opening_braces
+  - yoda_condition
+
+  # Code Quality
+  - accessibility_trait_for_button
+  - lower_acl_than_parent
+  - private_action
+  - private_outlet
+  - private_subject
+  - quick_discouraged_call
+  - quick_discouraged_focused_test
+  - quick_discouraged_pending_test
+  - discouraged_object_literal
+  - discouraged_optional_boolean
+  - discouraged_optional_collection
+
+  # SwiftUI specific
+  - missing_docs
+
+# Disabled rules
+disabled_rules:
+  - todo
+  - fixme
+  - trailing_whitespace # Can be annoying during development
+
+# Rule configurations
+line_length:
+  warning: 120
+  error: 150
+  ignores_comments: true
+  ignores_urls: true
+
+file_length:
+  warning: 400
+  error: 600
+
+function_body_length:
+  warning: 40
+  error: 80
+
+function_parameter_count:
+  warning: 6
+  error: 8
+
+type_body_length:
+  warning: 300
+  error: 400
+
+type_name:
+  min_length:
+    warning: 3
+    error: 2
+  max_length:
+    warning: 50
+    error: 60
+  excluded:
+    - ID
+    - URL
+    - UI
+
+identifier_name:
+  min_length:
+    warning: 2
+    error: 1
+  max_length:
+    warning: 50
+    error: 60
+  excluded:
+    - id
+    - ui
+    - ok
+    - no
+    - on
+    - x
+    - y
+    - z
+
+nesting:
+  type_level: 2
+  function_level: 3
+
+cyclomatic_complexity:
+  warning: 10
+  error: 20
+
+# Custom rules for this project
+custom_rules:
+  no_print_statements:
+    name: "No Print Statements"
+    regex: '^\s*print\('
+    message: "Use proper logging instead of print statements"
+    severity: warning
+
+  mark_todo_fixme:
+    name: "TODO/FIXME Format"
+    regex: '(//\s*(TODO|FIXME)(?!:|\())'
+    message: "Format TODOs as '// TODO: description' or '// TODO(username): description'"
+    severity: warning
+
+  swiftui_state_private:
+    name: "SwiftUI State Should Be Private"
+    regex: '(@State|@StateObject|@ObservedObject)\s+(var|let)'
+    message: "SwiftUI property wrappers should be private"
+    severity: warning
+    match_kinds:
+      - keyword
+      - identifier
+
+# Reporter type (xcode, json, csv, markdown, github-actions-logging)
+reporter: "xcode"

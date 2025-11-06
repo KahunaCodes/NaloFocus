@@ -12,10 +12,38 @@ struct NaloFocusApp: App {
     @StateObject private var coordinator = AppStateCoordinator()
 
     var body: some Scene {
+        #if DEBUG
+        // Development mode: Regular window app for easier testing
+        WindowGroup {
+            SprintDialogView()
+                .environmentObject(coordinator)
+                .frame(minWidth: 800, minHeight: 600)
+                .task {
+                    // Request permissions on app launch
+                    await coordinator.requestPermissions()
+                }
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 800, height: 600)
+        #else
+        // Production mode: Menu bar app
         MenuBarExtra("NaloFocus", systemImage: "timer") {
             MenuBarContentView()
                 .environmentObject(coordinator)
+                .task {
+                    // Request permissions on app launch
+                    await coordinator.requestPermissions()
+                }
         }
         .menuBarExtraStyle(.window)
+
+        // Sprint Dialog Window (for production menu bar mode)
+        Window("Sprint Planning", id: "sprint-dialog") {
+            SprintDialogView()
+                .environmentObject(coordinator)
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
+        #endif
     }
 }

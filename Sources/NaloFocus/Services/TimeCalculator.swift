@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import AppKit
 
 /// Protocol for time calculation operations
 protocol TimeCalculatorProtocol {
@@ -28,13 +29,16 @@ final class TimeCalculator: TimeCalculatorProtocol, @unchecked Sendable {
         var currentTime = session.startTime
 
         for task in session.tasks {
-            // Add task entry
+            // Add task entry with calendar color
             let taskEnd = currentTime.addingTimeInterval(task.duration)
+            let calendarColor = task.reminder?.calendar?.cgColor.flatMap { NSColor(cgColor: $0) }
+
             entries.append(TimelineEntry(
                 startTime: currentTime,
                 endTime: taskEnd,
                 title: task.reminder?.title ?? "Untitled Task",
-                type: .task
+                type: .task,
+                calendarColor: calendarColor
             ))
 
             currentTime = taskEnd
@@ -46,7 +50,8 @@ final class TimeCalculator: TimeCalculatorProtocol, @unchecked Sendable {
                     startTime: currentTime,
                     endTime: breakEnd,
                     title: "Break (\(Int(task.breakDuration / 60)) min)",
-                    type: .breakTime
+                    type: .breakTime,
+                    calendarColor: nil
                 ))
                 currentTime = breakEnd
             }

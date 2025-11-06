@@ -15,7 +15,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "NaloFocus",
-            dependencies: []
+            dependencies: [],
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-disable-availability-checking"])
+            ]
         ),
         .testTarget(
             name: "NaloFocusTests",
