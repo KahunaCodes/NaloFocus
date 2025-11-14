@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-NaloFocus is a lightweight macOS menu bar application that transforms unscheduled Reminders into time-blocked work sprints. Built with **Swift Package Manager** (NOT Xcode project), using SwiftUI and EventKit for native macOS integration.
+NaloFocus is a lightweight macOS menu bar application that transforms unscheduled Reminders into time-blocked work sprints. Built exclusively with **Swift Package Manager (SPM)**, using SwiftUI and EventKit for native macOS integration.
 
-**Key Point**: This is a Swift Package executable, not an Xcode project. Use `swift` commands, not `xcodebuild`.
+**Critical**: This is a pure Swift Package executable, not an Xcode project (`.xcodeproj`). Always use `swift` CLI commands, never `xcodebuild`. The project has no external dependencies and runs on macOS 15.0+.
 
 ## Quick Start Commands
 
@@ -81,21 +81,36 @@ xcrun llvm-cov report .build/debug/NaloFocusPackageTests.xctest/Contents/MacOS/N
    - Uses MenuBarExtra API (requires macOS 15+)
    - Modal dialog for sprint planning (not popover)
    - Resets to clean state after each sprint creation
+   - **DEBUG mode**: Window app for easier development
+   - **RELEASE mode**: Menu bar extra with window-style presentation
 
 ### Project Structure
 ```
-Sources/NaloFocus/
-├── NaloFocusApp.swift        # Entry point with MenuBarExtra
-├── Models/
-│   ├── SprintSession.swift   # Sprint container with timing
-│   ├── SprintTask.swift      # Individual task with duration
-│   ├── TimelineEntry.swift   # Timeline visualization data
-│   └── ReminderCategory.swift # Categorization logic
-├── Services/
-│   ├── ReminderManager.swift # EventKit operations
-│   └── TimeCalculator.swift  # Time calculation logic
-└── Views/
-    └── MenuBarContentView.swift # Main UI
+Sources/
+├── main.swift                     # SPM entry point
+└── NaloFocus/
+    ├── NaloFocusApp.swift        # App with DEBUG/RELEASE modes
+    ├── Models/
+    │   ├── AppStateCoordinator.swift  # State management
+    │   ├── SprintSession.swift        # Sprint container
+    │   ├── SprintTask.swift           # Task with duration
+    │   ├── SprintDialogViewModel.swift # ViewModel
+    │   ├── TimelineEntry.swift        # Timeline visualization
+    │   └── ReminderCategory.swift     # Categorization
+    ├── Services/
+    │   ├── ServiceContainer.swift     # DI container
+    │   ├── ReminderManager.swift      # EventKit operations
+    │   ├── ReminderManagerProtocol.swift
+    │   └── TimeCalculator.swift       # Time calculations
+    ├── Views/
+    │   ├── MenuBarContentView.swift   # Menu bar UI
+    │   ├── SprintDialogView.swift     # Main dialog
+    │   └── ReminderSelectionModal.swift
+    └── Utilities/
+        └── AppConstants.swift
+Tests/
+└── NaloFocusTests/
+    └── TimeCalculatorTests.swift
 ```
 
 ## Critical Implementation Details
@@ -204,11 +219,12 @@ final class SprintDialogViewModelTests: XCTestCase {
 
 ## Common Pitfalls to Avoid
 
-1. **Don't use Xcode project commands** - This is a Swift Package, not an .xcodeproj
+1. **Don't use Xcode project commands** - This is a Swift Package, not an .xcodeproj. Use `swift` CLI only.
 2. **Don't forget @MainActor** - ViewModels and UI-related code need proper actor annotation
 3. **Don't skip permission checks** - Always verify EventKit access before operations
 4. **Don't ignore build warnings** - Swift 6 concurrency warnings often become errors
 5. **Don't modify EventKit objects directly** - Always use proper save/commit patterns
+6. **Don't confuse DEBUG/RELEASE modes** - App behavior differs: window vs menu bar presentation
 
 ## Debugging Tips
 
@@ -216,7 +232,7 @@ final class SprintDialogViewModelTests: XCTestCase {
 # View detailed build errors
 swift build -v
 
-# Check Swift version
+# Check Swift version (should be 6.0+)
 swift --version
 
 # List all available targets
@@ -225,14 +241,48 @@ swift package describe
 # Clean everything when builds are acting strange
 rm -rf .build/ .swiftpm/ Package.resolved
 swift build
+
+# Run in DEBUG mode (shows window, not menu bar)
+swift run
+
+# Test with single test case
+swift test --filter TimeCalculatorTests/testGenerateTimeline
+```
+
+## Development Workflow Patterns
+
+### DEBUG vs RELEASE Mode
+The app uses compile-time flags to provide different UIs:
+- **DEBUG**: Opens a regular window for easier UI testing and development
+- **RELEASE**: Menu bar extra with modal window presentation
+
+```swift
+#if DEBUG
+    WindowGroup { SprintDialogView() }  // Regular window
+#else
+    MenuBarExtra { ... }                // Menu bar
+#endif
+```
+
+### Testing with Mock Services
+All services implement protocols for testability:
+
+```swift
+// Production
+let reminderManager: ReminderManagerProtocol = ReminderManager()
+
+// Testing
+let reminderManager: ReminderManagerProtocol = MockReminderManager()
 ```
 
 ## Key Files for Context
 
 - **`PHASE_PLAN.md`**: Current development progress and upcoming tasks
-- **`docs/DECISIONS.md`**: Architectural decisions and rationale
+- **`PRD.md`**: Product Requirements Document with full specifications
+- **`docs/DECISIONS.md`**: Architectural decisions and rationale (ADRs)
 - **`docs/RISKS.md`**: Known risks and mitigation strategies
 - **`docs/DAILY_PROGRESS.md`**: Daily development updates and blockers
+- **`Package.swift`**: SPM configuration with platform targets and build flags
 
 ## Next Steps When Starting Work
 

@@ -163,11 +163,30 @@ xcodebuild test -scheme NaloFocus -enableCodeCoverage YES
 
 ## Documentation
 
+### Getting Started
+- [README](README.md) - This file - Project introduction and quick start
+- [CLAUDE.md](CLAUDE.md) - Claude Code integration guide for AI-assisted development
+
+### Comprehensive Guides
+- **[Project Index](docs/PROJECT_INDEX.md)** - Complete project navigation with cross-references
+- **[Architecture Guide](docs/ARCHITECTURE.md)** - System architecture, design principles, and patterns
+- **[API Reference](docs/API_REFERENCE.md)** - Detailed API documentation for all components
+- **[Testing Guide](TESTING_GUIDE.md)** - Testing strategies and procedures
+
+### Product & Planning
 - [Product Requirements](PRD.md) - Detailed product specification
 - [Phase Plan](PHASE_PLAN.md) - Development roadmap and progress tracking
-- [Architecture Decisions](docs/DECISIONS.md) - Key design choices explained
+
+### Development Records
+- [Architecture Decisions](docs/DECISIONS.md) - Key design choices explained (ADRs)
 - [Risk Register](docs/RISKS.md) - Project risks and mitigations
 - [Daily Progress](docs/DAILY_PROGRESS.md) - Development diary
+
+### Implementation Details
+- [Task Insertion](docs/TASK_INSERTION_IMPLEMENTATION.md) - Inline task insertion UI pattern
+- [Calendar Colors](docs/CALENDAR_COLORS_FIX.md) - Calendar color integration
+- [Task Symbols](docs/TASK_SYMBOLS_IMPLEMENTATION.md) - Visual symbol system
+- [UI Improvements](docs/UI_IMPROVEMENTS.md) - UI enhancement records
 
 ## Contributing
 
