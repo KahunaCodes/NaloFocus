@@ -65,8 +65,17 @@ class SprintDialogViewModel: ObservableObject {
     }
 
     func addTask() {
-        guard taskCount < 9 else { return }
-        taskCount += 1
+        guard sprintSession.tasks.count < 9 else { return }
+        let newTask = SprintTask(duration: 25 * 60)
+        sprintSession.tasks.append(newTask)
+        taskCount = sprintSession.tasks.count
+    }
+
+    func insertTask(at index: Int) {
+        guard sprintSession.tasks.count < 9 else { return }
+        let newTask = SprintTask(duration: 25 * 60)
+        sprintSession.tasks.insert(newTask, at: min(index, sprintSession.tasks.count))
+        taskCount = sprintSession.tasks.count
     }
 
     func removeTask(at index: Int) {

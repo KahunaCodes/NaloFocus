@@ -91,6 +91,13 @@ struct SprintDialogView: View {
                     .font(.headline)
                     .padding(.bottom, 4)
 
+                // Add task button at the beginning
+                if viewModel.sprintSession.tasks.isEmpty || viewModel.sprintSession.tasks.count < 9 {
+                    InsertTaskButton {
+                        viewModel.insertTask(at: 0)
+                    }
+                }
+
                 ForEach(viewModel.sprintSession.tasks.indices, id: \.self) { index in
                     TaskConfigurationRow(
                         task: $viewModel.sprintSession.tasks[index],
@@ -100,7 +107,14 @@ struct SprintDialogView: View {
                             viewModel.removeTask(at: index)
                         }
                     )
-                    .padding(.bottom, index < viewModel.sprintSession.tasks.count - 1 ? 8 : 0)
+
+                    // Add insertion button after each task (except if we're at max)
+                    if viewModel.sprintSession.tasks.count < 9 {
+                        InsertTaskButton {
+                            viewModel.insertTask(at: index + 1)
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
             }
             .padding()
@@ -108,38 +122,27 @@ struct SprintDialogView: View {
     }
 
     private var taskCountSelector: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Number of tasks:")
+        HStack {
+            HStack(spacing: 4) {
+                Image(systemName: "list.number")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text("\(viewModel.sprintSession.tasks.count) of 9 tasks")
                     .font(.subheadline)
-                Stepper(
-                    "\(viewModel.taskCount) tasks",
-                    value: $viewModel.taskCount,
-                    in: 1...9
-                )
+                    .foregroundColor(.secondary)
             }
 
-            // Preview of task symbols
-            HStack(spacing: 6) {
-                ForEach(0..<min(viewModel.taskCount, 9), id: \.self) { index in
-                    ZStack {
-                        Circle()
-                            .fill(taskSymbolColor(for: index).opacity(0.1))
-                            .frame(width: 24, height: 24)
+            Spacer()
 
-                        Image(systemName: SprintTask.defaultSymbols[index % SprintTask.defaultSymbols.count])
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(taskSymbolColor(for: index))
-                    }
+            if viewModel.sprintSession.tasks.isEmpty {
+                Button(action: { viewModel.addTask() }) {
+                    Label("Add First Task", systemImage: "plus.circle.fill")
+                        .font(.caption)
                 }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
-            .padding(.leading, 2)
         }
-    }
-
-    private func taskSymbolColor(for index: Int) -> Color {
-        let colors: [Color] = [.blue, .purple, .pink, .orange, .green, .indigo, .red, .yellow, .cyan]
-        return colors[index % colors.count]
     }
 
     private var startTimeSelector: some View {
@@ -172,11 +175,8 @@ struct SprintDialogView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(viewModel.timelineEntries.enumerated()), id: \.element.id) { index, entry in
-                        TimelineEntryRow(
-                            entry: entry,
-                            taskIndex: entry.type == .task ? viewModel.timelineEntries.prefix(index + 1).filter { $0.type == .task }.count - 1 : nil
-                        )
+                    ForEach(viewModel.timelineEntries) { entry in
+                        TimelineEntryRow(entry: entry)
                     }
 
                     if viewModel.timelineEntries.isEmpty {
@@ -252,6 +252,39 @@ struct SprintDialogView: View {
     }
 }
 
+// MARK: - Insert Task Button
+
+struct InsertTaskButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Spacer()
+                HStack(spacing: 4) {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(.accentColor)
+                        .font(.system(size: 16))
+                    Text("Add task here")
+                        .font(.caption)
+                        .foregroundColor(.accentColor)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.accentColor.opacity(0.1))
+                .cornerRadius(6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
+                        .foregroundColor(.accentColor.opacity(0.3))
+                )
+                Spacer()
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Task Configuration Row
 
 struct TaskConfigurationRow: View {
@@ -262,23 +295,6 @@ struct TaskConfigurationRow: View {
 
     @State private var selectedReminderId: String?
     @State private var showReminderModal = false
-
-    // Task colors for visual variety
-    private let taskColors: [Color] = [
-        .blue,
-        .purple,
-        .pink,
-        .orange,
-        .green,
-        .indigo,
-        .red,
-        .yellow,
-        .cyan
-    ]
-
-    private func taskColor(for index: Int) -> Color {
-        taskColors[index % taskColors.count]
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -305,19 +321,17 @@ struct TaskConfigurationRow: View {
     // MARK: - Task Header
     private var taskHeader: some View {
         HStack {
-            // Task symbol with color for visual variety
-            ZStack {
-                Circle()
-                    .fill(taskColor(for: index).opacity(0.15))
-                    .frame(width: 32, height: 32)
+            // Task number badge
+            Circle()
+                .fill(Color.accentColor)
+                .frame(width: 28, height: 28)
+                .overlay(
+                    Text("\(index + 1)")
+                        .font(.system(.caption, weight: .semibold))
+                        .foregroundColor(.white)
+                )
 
-                Image(systemName: task.getSymbol(at: index))
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(taskColor(for: index))
-            }
-
-            // Task number and label
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text("Task \(index + 1)")
                     .font(.system(.subheadline, design: .rounded))
                     .fontWeight(.semibold)
@@ -361,54 +375,66 @@ struct TaskConfigurationRow: View {
             Button(action: {
                 showReminderModal = true
             }) {
-                    HStack(spacing: 8) {
-                        // Status icon with better visual feedback
-                        Image(systemName: task.reminder != nil
-                            ? "checkmark.circle.fill"
-                            : "exclamationmark.triangle.fill")
-                            .foregroundColor(task.reminder != nil ? .green : .orange)
-                            .font(.system(size: 14))
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(task.reminder?.title ?? "No reminder selected")
-                                .font(.system(.caption, design: .rounded))
-                                .fontWeight(.medium)
-                                .foregroundColor(task.reminder != nil ? .primary : .orange)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-
-                            if let calendar = task.reminder?.calendar?.title {
-                                Text(calendar)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    // Calendar color indicator
+                    if let reminder = task.reminder,
+                       let calendarColor = reminder.calendar?.cgColor {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color(NSColor(cgColor: calendarColor) ?? NSColor.systemBlue))
+                            .frame(width: 3, height: 24)
+                    } else {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.secondary.opacity(0.3))
+                            .frame(width: 3, height: 24)
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        task.reminder != nil
-                            ? Color.green.opacity(0.08)
-                            : Color.orange.opacity(0.08)
-                    )
-                    .cornerRadius(6)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(
-                                task.reminder != nil
-                                    ? Color.green.opacity(0.3)
-                                    : Color.orange.opacity(0.3),
-                                lineWidth: 1
-                            )
-                    )
+
+                    // Status icon with better visual feedback
+                    Image(systemName: task.reminder != nil
+                        ? "checkmark.circle.fill"
+                        : "exclamationmark.triangle.fill")
+                        .foregroundColor(task.reminder != nil ? .green : .orange)
+                        .font(.system(size: 14))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(task.reminder?.title ?? "No reminder selected")
+                            .font(.system(.caption, design: .rounded))
+                            .fontWeight(.medium)
+                            .foregroundColor(task.reminder != nil ? .primary : .orange)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+
+                        if let calendar = task.reminder?.calendar?.title {
+                            Text(calendar)
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    task.reminder != nil
+                        ? Color.green.opacity(0.08)
+                        : Color.orange.opacity(0.08)
+                )
+                .cornerRadius(6)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(
+                            task.reminder != nil
+                                ? Color.green.opacity(0.3)
+                                : Color.orange.opacity(0.3),
+                            lineWidth: 1
+                        )
+                )
+            }
                 .buttonStyle(.plain)
                 .help(task.reminder != nil
                     ? "Click to change reminder"
@@ -608,7 +634,6 @@ struct TaskConfigurationRow: View {
 
 struct TimelineEntryRow: View {
     let entry: TimelineEntry
-    let taskIndex: Int?
 
     private let formatter: DateFormatter = {
         let f = DateFormatter()
@@ -616,32 +641,19 @@ struct TimelineEntryRow: View {
         return f
     }()
 
-    private let taskColors: [Color] = [
-        .blue, .purple, .pink, .orange, .green, .indigo, .red, .yellow, .cyan
-    ]
-
-    private func taskColor(for index: Int) -> Color {
-        taskColors[index % taskColors.count]
-    }
-
     var body: some View {
         HStack(spacing: 8) {
-            // Task symbol or break indicator
-            if entry.type == .task, let index = taskIndex {
-                ZStack {
-                    Circle()
-                        .fill(taskColor(for: index).opacity(0.15))
-                        .frame(width: 24, height: 24)
-
-                    Image(systemName: SprintTask.defaultSymbols[index % SprintTask.defaultSymbols.count])
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(taskColor(for: index))
-                }
-            } else {
-                Image(systemName: "pause.circle")
-                    .foregroundColor(.gray)
-                    .font(.caption)
+            // Calendar color indicator for tasks
+            if entry.type == .task {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color(entry.calendarColor ?? NSColor.systemBlue))
+                    .frame(width: 3, height: 24)
             }
+
+            // Task or break indicator with calendar color
+            Image(systemName: entry.type == .task ? "circle.fill" : "pause.circle")
+                .foregroundColor(entry.type == .task ? Color(entry.calendarColor ?? NSColor.systemBlue) : .gray)
+                .font(.caption)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.title)
