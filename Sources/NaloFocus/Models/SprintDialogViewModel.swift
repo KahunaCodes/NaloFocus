@@ -84,6 +84,36 @@ class SprintDialogViewModel: ObservableObject {
         taskCount = sprintSession.tasks.count
     }
 
+    func moveTask(from sourceIndex: Int, to destinationIndex: Int) {
+        guard sourceIndex != destinationIndex,
+              sourceIndex >= 0, sourceIndex < sprintSession.tasks.count,
+              destinationIndex >= 0, destinationIndex < sprintSession.tasks.count else {
+            return
+        }
+
+        let task = sprintSession.tasks[sourceIndex]
+        sprintSession.tasks.remove(at: sourceIndex)
+        sprintSession.tasks.insert(task, at: destinationIndex)
+    }
+
+    func getTaskIndex(for entry: TimelineEntry) -> Int {
+        // Timeline entries include both tasks and breaks
+        // We need to map back to the actual task index
+        guard entry.type == .task else { return -1 }
+
+        // Count only task entries before this one to get the task index
+        var taskCount = 0
+        for timelineEntry in timelineEntries {
+            if timelineEntry.id == entry.id {
+                return taskCount
+            }
+            if timelineEntry.type == .task {
+                taskCount += 1
+            }
+        }
+        return -1
+    }
+
     func toggleBreak(for taskIndex: Int) {
         guard taskIndex < sprintSession.tasks.count else { return }
         sprintSession.tasks[taskIndex].hasBreak.toggle()

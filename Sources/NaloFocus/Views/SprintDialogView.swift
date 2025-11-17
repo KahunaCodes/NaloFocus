@@ -174,9 +174,25 @@ struct SprintDialogView: View {
                 .padding(.top)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(viewModel.timelineEntries) { entry in
-                        TimelineEntryRow(entry: entry)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(viewModel.timelineEntries.enumerated()), id: \.element.id) { index, entry in
+                        // Only make tasks draggable, not breaks
+                        if entry.type == .task {
+                            TimelineEntryRow(
+                                entry: entry,
+                                index: viewModel.getTaskIndex(for: entry),
+                                onMove: { fromIndex, toIndex in
+                                    viewModel.moveTask(from: fromIndex, to: toIndex)
+                                }
+                            )
+                            .onDrop(of: [.text], delegate: TimelineTaskDropDelegate(
+                                taskIndex: viewModel.getTaskIndex(for: entry),
+                                viewModel: viewModel
+                            ))
+                        } else {
+                            // Breaks are not draggable
+                            TimelineEntryRow(entry: entry, index: -1, onMove: nil)
+                        }
                     }
 
                     if viewModel.timelineEntries.isEmpty {
@@ -263,20 +279,20 @@ struct InsertTaskButton: View {
                 Spacer()
                 HStack(spacing: 4) {
                     Image(systemName: "plus.circle.fill")
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(.green)
                         .font(.system(size: 16))
-                    Text("Add task here")
+                    Text("Add Task")
                         .font(.caption)
-                        .foregroundColor(.accentColor)
+                        .foregroundColor(.green)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(Color.accentColor.opacity(0.1))
+                .background(Color(.systemGreen).opacity(0.2))
                 .cornerRadius(6)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
                         .strokeBorder(style: StrokeStyle(lineWidth: 1, dash: [3, 2]))
-                        .foregroundColor(.accentColor.opacity(0.3))
+                        .foregroundColor(.green.opacity(0.3))
                 )
                 Spacer()
             }
@@ -472,7 +488,7 @@ struct TaskConfigurationRow: View {
                         .foregroundColor(.secondary)
 
                     HStack(spacing: 6) {
-                        ForEach([15, 25, 30, 45], id: \.self) { minutes in
+                        ForEach([5,10,15, 25, 30, 45], id: \.self) { minutes in
                             Button(action: { task.duration = Double(minutes) * 60 }) {
                                 VStack(spacing: 2) {
                                     Text("\(minutes)")
@@ -634,6 +650,10 @@ struct TaskConfigurationRow: View {
 
 struct TimelineEntryRow: View {
     let entry: TimelineEntry
+    let index: Int
+    let onMove: ((Int, Int) -> Void)?
+
+    @State private var isDragging = false
 
     private let formatter: DateFormatter = {
         let f = DateFormatter()
@@ -665,8 +685,59 @@ struct TimelineEntryRow: View {
             }
 
             Spacer()
+
+            // Drag handle (only for tasks, not breaks)
+            if entry.type == .task, onMove != nil {
+                Image(systemName: "line.3.horizontal")
+                    .foregroundColor(.secondary.opacity(0.4))
+                    .font(.system(size: 14))
+                    .padding(.horizontal, 8)
+                    .contentShape(Rectangle())
+                    .onDrag {
+                        isDragging = true
+                        // Use entry ID or index for drag data
+                        return NSItemProvider(object: String(index) as NSString)
+                    }
+            }
         }
         .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(isDragging ? Color.accentColor.opacity(0.1) : Color.clear)
+        .cornerRadius(6)
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isDragging ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+        )
+        .animation(.easeInOut(duration: 0.15), value: isDragging)
+    }
+}
+
+// MARK: - Timeline Task Drop Delegate
+
+struct TimelineTaskDropDelegate: DropDelegate {
+    let taskIndex: Int
+    let viewModel: SprintDialogViewModel
+
+    func performDrop(info: DropInfo) -> Bool {
+        return true
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard let itemProvider = info.itemProviders(for: [.text]).first else { return }
+
+        itemProvider.loadItem(forTypeIdentifier: "public.text", options: nil) { data, error in
+            guard let data = data as? Data,
+                  let sourceIndexString = String(data: data, encoding: .utf8),
+                  let sourceIndex = Int(sourceIndexString) else {
+                return
+            }
+
+            if sourceIndex != taskIndex && sourceIndex >= 0 && taskIndex >= 0 {
+                DispatchQueue.main.async {
+                    viewModel.moveTask(from: sourceIndex, to: taskIndex)
+                }
+            }
+        }
     }
 }
 
