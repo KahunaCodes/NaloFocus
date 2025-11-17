@@ -24,12 +24,12 @@ echo -e "${YELLOW}Checking for code style issues...${NC}"
 
 ISSUES_FOUND=0
 
-# Check for print statements
+# Check for print statements (excluding test files)
 echo -n "Checking for print statements... "
-if grep -r "^\s*print(" Sources --include="*.swift" 2>/dev/null | grep -v "// print" > /dev/null; then
+if grep -r "^\s*print(" Sources --include="*.swift" --exclude-dir="*Tests" 2>/dev/null | grep -v "// print" | grep -v "Tests/" > /dev/null; then
     echo -e "${RED}✗${NC}"
     echo "  Found print statements (use proper logging instead):"
-    grep -rn "^\s*print(" Sources --include="*.swift" 2>/dev/null | grep -v "// print" | head -5
+    grep -rn "^\s*print(" Sources --include="*.swift" --exclude-dir="*Tests" 2>/dev/null | grep -v "// print" | grep -v "Tests/" | head -5
     ISSUES_FOUND=$((ISSUES_FOUND + 1))
 else
     echo -e "${GREEN}✓${NC}"

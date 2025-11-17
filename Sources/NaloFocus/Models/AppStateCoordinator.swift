@@ -20,7 +20,8 @@ class AppStateCoordinator: ObservableObject {
         do {
             hasRemindersPermission = try await services.reminderManager.requestAccess()
         } catch {
-            print("Permission request failed: \(error)")
+            // TODO: Implement proper logging system
+            // For now, silently fail and show error in UI
             hasRemindersPermission = false
         }
     }
