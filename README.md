@@ -53,6 +53,7 @@ NaloFocus is a lightweight macOS menu bar application that transforms your unsch
 ## Requirements
 
 - macOS 15.0 (Sequoia) or later
+- Swift 6.0+ (for development)
 - Reminders app access permission
 
 ## Installation
@@ -68,15 +69,22 @@ NaloFocus is a lightweight macOS menu bar application that transforms your unsch
 5. Grant Reminders access when prompted
 
 ### From Source
+
+**⚠️ Important**: NaloFocus is a **Swift Package** executable, not an Xcode project. Use `swift` CLI commands, **never** `xcodebuild`.
+
 ```bash
 # Clone the repository
 git clone https://github.com/yourusername/NaloFocus.git
 cd NaloFocus
 
-# Open in Xcode
-open NaloFocus.xcodeproj
+# Build and run the app
+swift run NaloFocus
 
-# Build and run (⌘R)
+# Build for release
+swift build -c release
+
+# Run tests
+swift test
 ```
 
 ## Usage
@@ -104,61 +112,150 @@ open NaloFocus.xcodeproj
 ### Project Structure
 ```
 NaloFocus/
+├── Package.swift              # Swift Package manifest
 ├── PHASE_PLAN.md              # Development roadmap and progress
 ├── PRD.md                     # Product requirements document
+├── CLAUDE.md                  # AI development guide
 ├── docs/                      # Documentation
 │   ├── DAILY_PROGRESS.md     # Daily development log
 │   ├── DECISIONS.md          # Architectural decisions
 │   └── RISKS.md              # Risk management
-├── NaloFocus/                 # Source code
-│   ├── NaloFocusApp.swift    # App entry point
-│   ├── Views/                # SwiftUI views
-│   ├── Models/               # Data models
-│   ├── Services/             # Business logic
-│   └── Utilities/            # Helper functions
-└── NaloFocusTests/           # Test suite
+├── Sources/
+│   ├── main.swift            # SPM entry point
+│   └── NaloFocus/            # Source code
+│       ├── NaloFocusApp.swift    # App with DEBUG/RELEASE modes
+│       ├── Views/                # SwiftUI views
+│       ├── Models/               # Data models & ViewModels
+│       ├── Services/             # Business logic
+│       └── Utilities/            # Helper functions
+└── Tests/
+    └── NaloFocusTests/       # Test suite
 ```
 
 ### Architecture
 
-NaloFocus follows MVVM architecture with:
+NaloFocus follows **MVVM architecture** with Swift 6 concurrency:
 - **SwiftUI** for modern, declarative UI
-- **EventKit** for Reminders integration
+- **EventKit** for native Reminders integration
 - **Dependency Injection** via ServiceContainer
 - **Protocol-oriented** design for testability
+- **Actor isolation** for thread-safe state management
+- **Stateless design** - no persistence layer needed
+
+**Key Design Principles:**
+- Menu bar integration using `MenuBarExtra` API
+- DEBUG mode: Window app for development
+- RELEASE mode: Menu bar extra with modal presentation
+- No external dependencies - pure Swift/SwiftUI
 
 ### Building
 
+**⚠️ Critical**: This is a **Swift Package Manager** project, not an Xcode project (`.xcodeproj`).
+
 Requirements:
-- Xcode 15.0+
+- Swift 6.0+
 - macOS 15.0+ SDK
-- Swift 5.9+
 
 ```bash
-# Install dependencies (if any)
-# None required - pure Swift/SwiftUI
+# Standard build
+swift build
 
-# Run tests
-xcodebuild test -scheme NaloFocus
+# Clean build (fixes most issues)
+swift package clean && swift build
+
+# Run with DEBUG mode (window instead of menu bar)
+swift run
 
 # Build for release
-xcodebuild build -scheme NaloFocus -configuration Release
+swift build -c release
 
-# Create archive for distribution
-xcodebuild archive -scheme NaloFocus
+# Reset dependencies
+swift package reset
+swift package update
 ```
 
 ### Testing
 
 ```bash
-# Unit tests
+# Run all tests
 swift test
 
-# UI tests
-xcodebuild test -scheme NaloFocusUITests
+# Run specific test suite
+swift test --filter TimeCalculatorTests
 
-# Coverage report
-xcodebuild test -scheme NaloFocus -enableCodeCoverage YES
+# Run with verbose output
+swift test --verbose
+
+# Generate coverage report
+swift test --enable-code-coverage
+xcrun llvm-cov report .build/debug/NaloFocusPackageTests.xctest/Contents/MacOS/NaloFocusPackageTests \
+  -instr-profile .build/debug/codecov/default.profdata
+```
+
+### DEBUG vs RELEASE Modes
+
+The app uses compile-time flags for different UIs:
+
+```swift
+#if DEBUG
+    WindowGroup { SprintDialogView() }  // Regular window for testing
+#else
+    MenuBarExtra { ... }                // Menu bar for production
+#endif
+```
+
+Run `swift run` for DEBUG mode with a standard window, making UI development easier.
+
+### Troubleshooting
+
+#### Swift 6 Concurrency Issues
+
+**Problem**: Actor isolation errors in ServiceContainer
+```swift
+// ❌ WRONG - Causes "main actor-isolated default value in nonisolated context"
+lazy var reminderManager: ReminderManagerProtocol = ReminderManager()
+```
+
+**Solution**: Mark ServiceContainer or properties with proper actor annotations
+```swift
+// ✅ CORRECT - Add @MainActor to class
+@MainActor
+final class ServiceContainer { ... }
+```
+
+#### EventKit Callbacks with Continuations
+
+**Problem**: "Value passed as strongly transferred parameter" error
+```swift
+// ❌ WRONG
+continuation.resume(returning: reminders ?? [])
+```
+
+**Solution**: Ensure proper sendability
+```swift
+// ✅ CORRECT
+return try await withCheckedThrowingContinuation { continuation in
+    eventStore.fetchReminders(matching: predicate) { reminders in
+        let safeReminders = reminders ?? []
+        continuation.resume(returning: safeReminders)
+    }
+}
+```
+
+#### Build Issues
+
+If you encounter build errors:
+
+```bash
+# Clean all build artifacts
+swift package clean
+rm -rf .build/
+
+# Reset package dependencies
+swift package reset
+
+# Rebuild
+swift build
 ```
 
 ## Documentation
