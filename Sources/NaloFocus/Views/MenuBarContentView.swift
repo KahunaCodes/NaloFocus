@@ -66,12 +66,14 @@ struct MenuBarContentView: View {
     }
 
     private func openSprintDialog() {
-        openWindow(id: "sprint-dialog")
+        if coordinator.hasRemindersPermission {
+            openWindow(id: "sprint-dialog")
+        } else {
+            openWindow(id: "permission-splash")
+        }
     }
 
     private func requestPermissions() {
-        Task {
-            await coordinator.requestPermissions()
-        }
+        openWindow(id: "permission-splash")
     }
 }

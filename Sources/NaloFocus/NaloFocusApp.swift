@@ -15,13 +15,16 @@ struct NaloFocusApp: App {
         #if DEBUG
         // Development mode: Regular window app for easier testing
         WindowGroup {
-            SprintDialogView()
-                .environmentObject(coordinator)
-                .frame(minWidth: 800, minHeight: 600)
-                .task {
-                    // Request permissions on app launch
-                    await coordinator.requestPermissions()
+            Group {
+                if coordinator.permissionState == .granted {
+                    SprintDialogView()
+                        .environmentObject(coordinator)
+                        .frame(minWidth: 800, minHeight: 600)
+                } else {
+                    PermissionSplashView()
+                        .environmentObject(coordinator)
                 }
+            }
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 800, height: 600)
@@ -30,12 +33,17 @@ struct NaloFocusApp: App {
         MenuBarExtra("NaloFocus", systemImage: "timer") {
             MenuBarContentView()
                 .environmentObject(coordinator)
-                .task {
-                    // Request permissions on app launch
-                    await coordinator.requestPermissions()
-                }
         }
         .menuBarExtraStyle(.window)
+
+        // Permission Splash Window (shown first)
+        Window("Welcome to NaloFocus", id: "permission-splash") {
+            PermissionSplashView()
+                .environmentObject(coordinator)
+        }
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 600, height: 500)
+        .defaultPosition(.center)
 
         // Sprint Dialog Window (for production menu bar mode)
         Window("Sprint Planning", id: "sprint-dialog") {
