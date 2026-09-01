@@ -13,6 +13,10 @@ struct SprintDialogView: View {
     @EnvironmentObject var coordinator: AppStateCoordinator
     @Environment(\.dismiss) private var dismiss
 
+    // Drag-and-drop state
+    @State private var draggedTaskIndex: Int? = nil
+    @State private var hoveredDropIndex: Int? = nil
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -183,15 +187,30 @@ struct SprintDialogView: View {
                                 index: viewModel.getTaskIndex(for: entry),
                                 onMove: { fromIndex, toIndex in
                                     viewModel.moveTask(from: fromIndex, to: toIndex)
-                                }
+                                    // Reset drag state after drop
+                                    withAnimation {
+                                        draggedTaskIndex = nil
+                                        hoveredDropIndex = nil
+                                    }
+                                },
+                                draggedTaskIndex: $draggedTaskIndex,
+                                hoveredDropIndex: $hoveredDropIndex
                             )
                             .onDrop(of: [.text], delegate: TimelineTaskDropDelegate(
                                 taskIndex: viewModel.getTaskIndex(for: entry),
-                                viewModel: viewModel
+                                viewModel: viewModel,
+                                draggedTaskIndex: $draggedTaskIndex,
+                                hoveredDropIndex: $hoveredDropIndex
                             ))
                         } else {
                             // Breaks are not draggable
-                            TimelineEntryRow(entry: entry, index: -1, onMove: nil)
+                            TimelineEntryRow(
+                                entry: entry,
+                                index: -1,
+                                onMove: nil,
+                                draggedTaskIndex: $draggedTaskIndex,
+                                hoveredDropIndex: $hoveredDropIndex
+                            )
                         }
                     }
 
@@ -652,8 +671,8 @@ struct TimelineEntryRow: View {
     let entry: TimelineEntry
     let index: Int
     let onMove: ((Int, Int) -> Void)?
-
-    @State private var isDragging = false
+    @Binding var draggedTaskIndex: Int?
+    @Binding var hoveredDropIndex: Int?
 
     private let formatter: DateFormatter = {
         let f = DateFormatter()
@@ -661,54 +680,96 @@ struct TimelineEntryRow: View {
         return f
     }()
 
+    private var isDragging: Bool {
+        draggedTaskIndex == index
+    }
+
+    private var isDropTarget: Bool {
+        hoveredDropIndex == index && draggedTaskIndex != nil && draggedTaskIndex != index
+    }
+
     var body: some View {
-        HStack(spacing: 8) {
-            // Calendar color indicator for tasks
-            if entry.type == .task {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color(entry.calendarColor ?? NSColor.systemBlue))
-                    .frame(width: 3, height: 24)
+        VStack(spacing: 0) {
+            // Drop indicator at top
+            if isDropTarget {
+                dropIndicator
             }
 
-            // Task or break indicator with calendar color
-            Image(systemName: entry.type == .task ? "circle.fill" : "pause.circle")
-                .foregroundColor(entry.type == .task ? Color(entry.calendarColor ?? NSColor.systemBlue) : .gray)
-                .font(.caption)
+            HStack(spacing: 8) {
+                // Calendar color indicator for tasks
+                if entry.type == .task {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(Color(entry.calendarColor ?? NSColor.systemBlue))
+                        .frame(width: 3, height: 24)
+                }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title)
+                // Task or break indicator with calendar color
+                Image(systemName: entry.type == .task ? "circle.fill" : "pause.circle")
+                    .foregroundColor(entry.type == .task ? Color(entry.calendarColor ?? NSColor.systemBlue) : .gray)
                     .font(.caption)
-                    .lineLimit(1)
-                Text("\(formatter.string(from: entry.startTime)) - \(formatter.string(from: entry.endTime))")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
 
-            Spacer()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.title)
+                        .font(.caption)
+                        .lineLimit(1)
+                    Text("\(formatter.string(from: entry.startTime)) - \(formatter.string(from: entry.endTime))")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
 
-            // Drag handle (only for tasks, not breaks)
-            if entry.type == .task, onMove != nil {
-                Image(systemName: "line.3.horizontal")
-                    .foregroundColor(.secondary.opacity(0.4))
-                    .font(.system(size: 14))
-                    .padding(.horizontal, 8)
-                    .contentShape(Rectangle())
-                    .onDrag {
-                        isDragging = true
-                        // Use entry ID or index for drag data
-                        return NSItemProvider(object: String(index) as NSString)
-                    }
+                Spacer()
+
+                // Drag handle (only for tasks, not breaks)
+                if entry.type == .task, onMove != nil {
+                    Image(systemName: "line.3.horizontal")
+                        .foregroundColor(isDragging ? .accentColor : .secondary.opacity(0.4))
+                        .font(.system(size: 14))
+                        .padding(.horizontal, 8)
+                        .contentShape(Rectangle())
+                        .help("Drag to reorder")
+                        .onDrag {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                draggedTaskIndex = index
+                            }
+                            return NSItemProvider(object: String(index) as NSString)
+                        }
+                }
             }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isDragging ? Color.accentColor.opacity(0.15) : (isDropTarget ? Color.green.opacity(0.1) : Color.clear))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(
+                        isDragging ? Color.accentColor.opacity(0.5) :
+                        isDropTarget ? Color.green.opacity(0.5) : Color.clear,
+                        lineWidth: isDragging || isDropTarget ? 2 : 0
+                    )
+            )
+            .scaleEffect(isDragging ? 0.98 : 1.0)
+            .opacity(isDragging ? 0.6 : 1.0)
         }
-        .padding(.vertical, 4)
+        .animation(.easeInOut(duration: 0.2), value: isDragging)
+        .animation(.easeInOut(duration: 0.2), value: isDropTarget)
+    }
+
+    private var dropIndicator: some View {
+        HStack {
+            Rectangle()
+                .fill(Color.green)
+                .frame(height: 2)
+            Image(systemName: "arrow.down.circle.fill")
+                .foregroundColor(.green)
+                .font(.system(size: 16))
+            Rectangle()
+                .fill(Color.green)
+                .frame(height: 2)
+        }
         .padding(.horizontal, 8)
-        .background(isDragging ? Color.accentColor.opacity(0.1) : Color.clear)
-        .cornerRadius(6)
-        .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(isDragging ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
-        .animation(.easeInOut(duration: 0.15), value: isDragging)
+        .padding(.vertical, 2)
     }
 }
 
@@ -717,13 +778,25 @@ struct TimelineEntryRow: View {
 struct TimelineTaskDropDelegate: DropDelegate {
     let taskIndex: Int
     let viewModel: SprintDialogViewModel
-
-    func performDrop(info: DropInfo) -> Bool {
-        return true
-    }
+    @Binding var draggedTaskIndex: Int?
+    @Binding var hoveredDropIndex: Int?
 
     func dropEntered(info: DropInfo) {
-        guard let itemProvider = info.itemProviders(for: [.text]).first else { return }
+        // Update hover state to show drop indicator
+        withAnimation(.easeInOut(duration: 0.2)) {
+            hoveredDropIndex = taskIndex
+        }
+    }
+
+    func dropExited(info: DropInfo) {
+        // Clear hover state when leaving
+        withAnimation(.easeInOut(duration: 0.2)) {
+            hoveredDropIndex = nil
+        }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard let itemProvider = info.itemProviders(for: [.text]).first else { return false }
 
         itemProvider.loadItem(forTypeIdentifier: "public.text", options: nil) { data, error in
             guard let data = data as? Data,
@@ -735,9 +808,15 @@ struct TimelineTaskDropDelegate: DropDelegate {
             if sourceIndex != taskIndex && sourceIndex >= 0 && taskIndex >= 0 {
                 DispatchQueue.main.async {
                     viewModel.moveTask(from: sourceIndex, to: taskIndex)
+                    // Clear drag state after drop
+                    withAnimation {
+                        draggedTaskIndex = nil
+                        hoveredDropIndex = nil
+                    }
                 }
             }
         }
+        return true
     }
 }
 
