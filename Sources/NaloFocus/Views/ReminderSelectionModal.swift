@@ -12,11 +12,35 @@ struct ReminderSelectionModal: View {
     @Binding var isPresented: Bool
     @Binding var selectedReminder: EKReminder?
     let availableReminders: CategorizedReminders
+    let title: String
+    let subtitle: String?
+    let size: CGSize
 
-    @State private var selectedTab = 0
-    @State private var searchText = ""
+    @State private var selectedTab: Int
+    @State private var searchText: String
     @State private var expandedLists: Set<String> = []
     @FocusState private var isSearchFocused: Bool
+
+    /// Defaults reproduce the sprint-dialog sheet; the slot picker overrides title, tab, search and size
+    init(
+        isPresented: Binding<Bool>,
+        selectedReminder: Binding<EKReminder?>,
+        availableReminders: CategorizedReminders,
+        title: String = "Select Reminder",
+        subtitle: String? = nil,
+        initialTab: Int = 0,
+        initialSearch: String = "",
+        size: CGSize = CGSize(width: 500, height: 600)
+    ) {
+        _isPresented = isPresented
+        _selectedReminder = selectedReminder
+        self.availableReminders = availableReminders
+        self.title = title
+        self.subtitle = subtitle
+        self.size = size
+        _selectedTab = State(initialValue: initialTab)
+        _searchText = State(initialValue: initialSearch)
+    }
 
     // Group reminders by their calendar (list)
     private func groupRemindersByList(_ reminders: [EKReminder]) -> [(String, NSColor?, [EKReminder])] {
@@ -50,6 +74,22 @@ struct ReminderSelectionModal: View {
         return groupRemindersByList(filtered)
     }
 
+    /// Marks the reminder selected, lets the checkmark animate in, then dismisses
+    private func select(_ reminder: EKReminder) {
+        selectedReminder = reminder
+        withAnimation(.easeOut(duration: 0.2)) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                isPresented = false
+            }
+        }
+    }
+
+    /// Return in the search field picks the first visible reminder
+    private func selectFirstMatch() {
+        guard let first = filteredGroups.first?.2.first else { return }
+        select(first)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             headerSection
@@ -59,7 +99,7 @@ struct ReminderSelectionModal: View {
             Divider()
             footerSection
         }
-        .frame(width: 500, height: 600)
+        .frame(width: size.width, height: size.height)
         .background(Color(NSColor.windowBackgroundColor))
     }
 
@@ -67,9 +107,15 @@ struct ReminderSelectionModal: View {
 
     private var headerSection: some View {
         VStack(spacing: 12) {
-            Text("Select Reminder")
+            Text(title)
                 .font(.title2)
                 .fontWeight(.semibold)
+
+            if let subtitle {
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+            }
 
             // Search field
             HStack {
@@ -79,6 +125,7 @@ struct ReminderSelectionModal: View {
                 TextField("Search reminders...", text: $searchText)
                     .textFieldStyle(.plain)
                     .focused($isSearchFocused)
+                    .onSubmit(selectFirstMatch)
 
                 if !searchText.isEmpty {
                     Button(action: { searchText = "" }) {
@@ -129,7 +176,7 @@ struct ReminderSelectionModal: View {
                         color: color,
                         reminders: reminders,
                         selectedReminder: $selectedReminder,
-                        isPresented: $isPresented
+                        onSelect: select
                     )
                 }
 
@@ -171,7 +218,7 @@ struct ReminderListGroup: View {
     let color: NSColor?
     let reminders: [EKReminder]
     @Binding var selectedReminder: EKReminder?
-    @Binding var isPresented: Bool
+    let onSelect: (EKReminder) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -201,12 +248,7 @@ struct ReminderListGroup: View {
                         isSelected: selectedReminder?.calendarItemIdentifier == reminder.calendarItemIdentifier,
                         color: color
                     ) {
-                        selectedReminder = reminder
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                                isPresented = false
-                            }
-                        }
+                        onSelect(reminder)
                     }
                 }
             }
