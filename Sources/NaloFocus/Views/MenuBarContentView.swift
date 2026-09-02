@@ -47,6 +47,18 @@ struct MenuBarContentView: View {
                     .buttonStyle(.plain)
                     .foregroundColor(.orange)
                 }
+
+                Toggle(isOn: Binding(
+                    get: { coordinator.slotPickerEnabled },
+                    set: { coordinator.setSlotPickerEnabled($0) }
+                )) {
+                    Label("Calendar slot picker", systemImage: "calendar.badge.clock")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(!coordinator.hasRemindersPermission)
+                .help("When Calendar creates a reminder in a time slot, offer an existing reminder for it instead")
             }
             .padding(.horizontal)
             .padding(.vertical, 4)
