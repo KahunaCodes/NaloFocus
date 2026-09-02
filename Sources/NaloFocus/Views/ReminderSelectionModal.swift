@@ -16,6 +16,7 @@ struct ReminderSelectionModal: View {
     @State private var selectedTab = 0
     @State private var searchText = ""
     @State private var expandedLists: Set<String> = []
+    @FocusState private var isSearchFocused: Bool
 
     // Group reminders by their calendar (list)
     private func groupRemindersByList(_ reminders: [EKReminder]) -> [(String, NSColor?, [EKReminder])] {
@@ -74,14 +75,35 @@ struct ReminderSelectionModal: View {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.secondary)
+                    .padding(.leading, 8)
                 TextField("Search reminders...", text: $searchText)
                     .textFieldStyle(.plain)
+                    .focused($isSearchFocused)
+
+                if !searchText.isEmpty {
+                    Button(action: { searchText = "" }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 8)
+                }
             }
-            .padding(8)
-            .background(Color(NSColor.controlBackgroundColor))
+            .padding(.vertical, 8)
+            .background(Color(NSColor.textBackgroundColor))
             .cornerRadius(6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isSearchFocused ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: 1)
+            )
         }
         .padding()
+        .onAppear {
+            // Set focus to search field when modal appears
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                isSearchFocused = true
+            }
+        }
     }
 
     private var tabSelection: some View {
