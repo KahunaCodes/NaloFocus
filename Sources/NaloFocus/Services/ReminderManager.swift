@@ -16,8 +16,11 @@ struct UncheckedSendableBox<T>: @unchecked Sendable {
 /// Manages EventKit reminders for sprint scheduling
 @MainActor
 final class ReminderManager: ReminderManagerProtocol {
-    private let eventStore = EKEventStore()
+    let eventStore = EKEventStore()
     private var breaksCalendar: EKCalendar?
+
+    /// Stamped before every write so store observers can ignore the echo of our own commits
+    private(set) var lastOwnSaveAt: Date = .distantPast
 
     // MARK: - Permission Management
 
@@ -52,6 +55,21 @@ final class ReminderManager: ReminderManagerProtocol {
         }
     }
 
+    func fetchIncompleteReminders(dueBetween start: Date, and end: Date) async throws -> [EKReminder] {
+        let predicate = eventStore.predicateForIncompleteReminders(
+            withDueDateStarting: start,
+            ending: end,
+            calendars: nil
+        )
+
+        return try await withCheckedThrowingContinuation { continuation in
+            eventStore.fetchReminders(matching: predicate) { reminders in
+                let boxedReminders = UncheckedSendableBox(value: reminders ?? [])
+                continuation.resume(returning: boxedReminders.value)
+            }
+        }
+    }
+
     func categorizeReminders(_ reminders: [EKReminder]) -> CategorizedReminders {
         var categorized = CategorizedReminders()
         let now = Date()
@@ -79,13 +97,34 @@ final class ReminderManager: ReminderManagerProtocol {
     // MARK: - Reminder Updates
 
     func updateReminderAlarm(_ reminder: EKReminder, at date: Date) async throws {
+        applySchedule(reminder, at: date)
+        lastOwnSaveAt = Date()
+        try eventStore.save(reminder, commit: true)
+    }
+
+    func reschedule(_ reminder: EKReminder, to date: Date, replacing placeholder: EKReminder?) async throws {
+        applySchedule(reminder, at: date)
+        lastOwnSaveAt = Date()
+        do {
+            try eventStore.save(reminder, commit: false)
+            if let placeholder {
+                try eventStore.remove(placeholder, commit: false)
+            }
+            try eventStore.commit()
+        } catch {
+            // Drop whatever half-applied in this batch so the store matches what the user still sees
+            eventStore.reset()
+            throw error
+        }
+    }
+
+    /// Due date to the minute plus one absolute alarm: the shape every NaloFocus schedule uses
+    private func applySchedule(_ reminder: EKReminder, at date: Date) {
         reminder.alarms = [EKAlarm(absoluteDate: date)]
         reminder.dueDateComponents = Calendar.current.dateComponents(
             [.year, .month, .day, .hour, .minute],
             from: date
         )
-
-        try eventStore.save(reminder, commit: true)
     }
 
     // MARK: - Sprint Operations
@@ -127,6 +166,7 @@ final class ReminderManager: ReminderManagerProtocol {
         )
         breakReminder.alarms = [EKAlarm(absoluteDate: date)]
 
+        lastOwnSaveAt = Date()
         try eventStore.save(breakReminder, commit: true)
         return breakReminder
     }
@@ -148,6 +188,7 @@ final class ReminderManager: ReminderManagerProtocol {
         newCalendar.title = "Breaks"
         newCalendar.source = eventStore.defaultCalendarForNewReminders()?.source
 
+        lastOwnSaveAt = Date()
         try eventStore.saveCalendar(newCalendar, commit: true)
         self.breaksCalendar = newCalendar
         return newCalendar
