@@ -1,7 +1,7 @@
 # NaloFocus Makefile
 # Provides convenient commands for building, testing, and linting
 
-.PHONY: help build test lint lint-fix run clean release install
+.PHONY: help build test lint lint-fix run clean release bundle install
 
 # Default target
 help:
@@ -14,7 +14,8 @@ help:
 	@echo "  make run         - Build and run the application"
 	@echo "  make clean       - Clean build artifacts"
 	@echo "  make release     - Build for release"
-	@echo "  make install     - Build release and install to /Applications"
+	@echo "  make bundle      - Build release and assemble a signed .app in .build/release"
+	@echo "  make install     - Build release, bundle, sign, and install to /Applications"
 	@echo "  make check       - Run lint and tests"
 	@echo "  make all         - Clean, lint, build, and test"
 
@@ -47,31 +48,19 @@ clean:
 release: lint test
 	swift build -c release
 
-# Install to Applications folder (macOS)
-install: release
-	@echo "Building app bundle..."
-	@mkdir -p /tmp/NaloFocus.app/Contents/MacOS
-	@mkdir -p /tmp/NaloFocus.app/Contents/Resources
-	@cp .build/release/NaloFocus /tmp/NaloFocus.app/Contents/MacOS/
-	@echo '<?xml version="1.0" encoding="UTF-8"?>' > /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '<plist version="1.0">' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '<dict>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '    <key>CFBundleExecutable</key>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '    <string>NaloFocus</string>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '    <key>CFBundleIdentifier</key>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '    <string>com.nalofocus.app</string>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '    <key>CFBundleName</key>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '    <string>NaloFocus</string>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '    <key>CFBundlePackageType</key>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '    <string>APPL</string>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '    <key>LSUIElement</key>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '    <true/>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '</dict>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@echo '</plist>' >> /tmp/NaloFocus.app/Contents/Info.plist
-	@rm -rf /Applications/NaloFocus.app
-	@mv /tmp/NaloFocus.app /Applications/
-	@echo "✓ NaloFocus installed to /Applications"
+# Assemble a signed release .app (see scripts/bundle.sh; NALOFOCUS_SIGN_IDENTITY picks the identity)
+bundle:
+	@scripts/bundle.sh release
+
+# Install to Applications folder (macOS). Uses the repo Info.plist: the Reminders usage strings
+# live there and TCC refuses the access request without them.
+install: lint test
+	@APP="$$(scripts/bundle.sh release)" && \
+	pkill -x NaloFocus 2>/dev/null || true; \
+	rm -rf /Applications/NaloFocus.app && \
+	ditto "$$APP" /Applications/NaloFocus.app && \
+	echo "✓ NaloFocus installed to /Applications (signed as '$${NALOFOCUS_SIGN_IDENTITY:--}')" && \
+	echo "  Launch: open /Applications/NaloFocus.app   Login item: System Settings > General > Login Items"
 
 # Run both lint and tests
 check: lint test
