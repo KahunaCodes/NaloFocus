@@ -8,17 +8,26 @@ NaloFocus is a lightweight macOS menu bar application that transforms unschedule
 
 **Critical**: This is a pure Swift Package executable, not an Xcode project (`.xcodeproj`). Always use `swift` CLI commands, never `xcodebuild`. The project has no external dependencies and runs on macOS 15.0+.
 
+**Critical, learned the hard way**: never run the bare binary (`swift run`, `.build/debug/NaloFocus`). Without a bundle the text input server refuses the process (every text field beeps) and TCC cannot grant Reminders access. Always launch the `.app` that `scripts/bundle.sh` assembles: `./launch.sh` (debug) or `make install` (release to /Applications). Procedures and gotchas: `.claude/skills/nalofocus-dev/SKILL.md`.
+
 ## Quick Start Commands
 
 ```bash
-# Build and run the app
-swift run NaloFocus
+# Build, bundle, sign, launch (debug; relaunches a running copy)
+./launch.sh
 
-# Run tests
+# Preview the Calendar slot picker with a fake slot (dry run, nothing saved)
+./launch.sh --env NALOFOCUS_TEST_PANEL=1
+
+# Watch the app log (every slot-picker gate decision is logged)
+log stream --predicate 'subsystem == "com.kahunacodes.NaloFocus"' --level debug
+
+# Run tests / lint
 swift test
+./scripts/swift-lint.sh
 
-# Build for release
-swift build -c release
+# Release: lint + test + signed bundle -> /Applications/NaloFocus.app
+make install
 
 # Clean and rebuild (fixes most build issues)
 swift package clean && swift build
@@ -83,6 +92,14 @@ xcrun llvm-cov report .build/debug/NaloFocusPackageTests.xctest/Contents/MacOS/N
    - Resets to clean state after each sprint creation
    - **DEBUG mode**: Window app for easier development
    - **RELEASE mode**: Menu bar extra with window-style presentation
+   - Reminders access is requested in `AppStateCoordinator.init`, never in the MenuBarExtra content's `.task`: that content only appears (and runs its task) when the icon is first clicked
+
+5. **Calendar Slot Picker** (`ReminderStoreWatcher`, `SlotPickerPanel`, coordinator wiring; ADR-011, `docs/SPEC.md`, Linear KAH-153)
+   - `ReminderStoreWatcher` diffs incomplete-reminder ids on every `.EKEventStoreChanged` (coalesced, no payload) after a 600ms quiet wait; gates: no picker open, not our own save's echo, Calendar frontmost at burst start, `creationDate` < 15s, timed due date
+   - `SlotPickerController` shows `ReminderSelectionModal` in a non-activating floating `NSPanel` so Calendar keeps focus; any close without a pick is a cancel (willClose observer + Escape key monitor)
+   - Pick: `ReminderManager.reschedule(_:to:replacing:)` saves the picked reminder onto the slot and removes the placeholder in one commit
+   - Kill switch: "Calendar slot picker" toggle in the menu bar (`UserDefaults` `calendarSlotPickerEnabled`)
+   - All constants in `AppConstants.SlotPicker`; logging subsystem `com.kahunacodes.NaloFocus`
 
 ### Project Structure
 ```
@@ -99,15 +116,22 @@ Sources/
     │   └── ReminderCategory.swift     # Categorization
     ├── Services/
     │   ├── ServiceContainer.swift     # DI container
-    │   ├── ReminderManager.swift      # EventKit operations
+    │   ├── ReminderManager.swift      # EventKit operations (fetch, reschedule, own-save stamp)
     │   ├── ReminderManagerProtocol.swift
+    │   ├── ReminderStoreWatcher.swift # Store diff -> Calendar placeholder detection
     │   └── TimeCalculator.swift       # Time calculations
     ├── Views/
-    │   ├── MenuBarContentView.swift   # Menu bar UI
+    │   ├── MenuBarContentView.swift   # Menu bar UI (+ slot picker toggle)
     │   ├── SprintDialogView.swift     # Main dialog
-    │   └── ReminderSelectionModal.swift
+    │   ├── ReminderSelectionModal.swift  # Picker (sprint sheet + slot panel)
+    │   └── SlotPickerPanel.swift      # Non-activating NSPanel + controller
     └── Utilities/
-        └── AppConstants.swift
+        ├── AppConstants.swift         # incl. Logging + SlotPicker constants
+        └── EKReminder+Scheduling.swift
+scripts/
+├── bundle.sh                # build + .app + codesign (auto-picks "NaloFocus Dev")
+├── make-signing-cert.sh     # one-time self-signed identity (stable TCC grants)
+└── swift-lint.sh            # grep-based lint (no print(, no !., <=120 cols)
 Tests/
 └── NaloFocusTests/
     └── TimeCalculatorTests.swift
@@ -153,8 +177,9 @@ return try await withCheckedThrowingContinuation { continuation in
 
 **Permissions**: Always check before operations
 ```swift
-// Required in Info.plist
+// Required in Info.plist (both keys; only reaches TCC when running as the .app bundle)
 NSRemindersUsageDescription: "NaloFocus needs access to update your reminders"
+NSRemindersFullAccessUsageDescription: "..."   // macOS 14+ full-access key
 
 // Check permission before any EventKit operation
 guard try await reminderManager.requestAccess() else {
@@ -225,6 +250,12 @@ final class SprintDialogViewModelTests: XCTestCase {
 4. **Don't ignore build warnings** - Swift 6 concurrency warnings often become errors
 5. **Don't modify EventKit objects directly** - Always use proper save/commit patterns
 6. **Don't confuse DEBUG/RELEASE modes** - App behavior differs: window vs menu bar presentation
+7. **Don't run the bare binary** - text fields beep and TCC refuses; use `./launch.sh` / `make install`
+8. **Don't put launch-time work in MenuBarExtra content** - its `.task` waits for the first icon click
+9. **Don't assume a panel close reached your model** - the red close button bypasses SwiftUI and `performClose`; observe `NSWindow.willCloseNotification`
+10. **Don't forget the own-save echo** - every write must stamp `lastOwnSaveAt`, or the watcher sees your commit as a new reminder
+11. **Don't trust Accessibility scripting of an unactivated accessory app** - System Events lists zero windows until `set frontmost to true`
+12. **Don't concatenate `os.Logger` messages with `+`** - `OSLogMessage` is not a string; compose a `String` first, then interpolate it
 
 ## Debugging Tips
 
@@ -242,8 +273,8 @@ swift package describe
 rm -rf .build/ .swiftpm/ Package.resolved
 swift build
 
-# Run in DEBUG mode (shows window, not menu bar)
-swift run
+# Run in DEBUG mode (shows window, not menu bar), as a bundle
+./launch.sh
 
 # Test with single test case
 swift test --filter TimeCalculatorTests/testGenerateTimeline
@@ -277,9 +308,11 @@ let reminderManager: ReminderManagerProtocol = MockReminderManager()
 
 ## Key Files for Context
 
+- **`docs/SPEC.md`**: Calendar slot picker spec, Definition of Done, measured results, burn-in plan
+- **`docs/KNOWN_ISSUES.md`**: Issue log (#1 search-field beep resolved: bare binary, not SwiftUI)
 - **`PHASE_PLAN.md`**: Current development progress and upcoming tasks
 - **`PRD.md`**: Product Requirements Document with full specifications
-- **`docs/DECISIONS.md`**: Architectural decisions and rationale (ADRs)
+- **`docs/DECISIONS.md`**: Architectural decisions and rationale (ADRs; ADR-011 = slot picker)
 - **`docs/RISKS.md`**: Known risks and mitigation strategies
 - **`docs/DAILY_PROGRESS.md`**: Daily development updates and blockers
 - **`Package.swift`**: SPM configuration with platform targets and build flags
