@@ -163,6 +163,7 @@ struct ReminderSelectionModal: View {
                 .tag(2)
         }
         .pickerStyle(.segmented)
+        .labelsHidden()
         .padding(.horizontal)
         .padding(.bottom)
     }
