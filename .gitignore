@@ -13,3 +13,6 @@ DerivedData/
 *.swiftdeps
 *.swiftmodule
 *.swiftsourceinfo
+
+# Serena MCP project metadata
+.serena/

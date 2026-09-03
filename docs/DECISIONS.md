@@ -209,6 +209,25 @@
 - Save as template: Adds complexity and state
 - Ask user: Adds unnecessary decision point
 
+### ADR-011: Calendar Slot Picker via Store Diff + Non-Activating Panel
+**Date**: 2026-09-03
+**Status**: Accepted
+**Context**: Calendar.app can create a new reminder in a time slot and drag reminders between slots, but cannot pull an existing reminder into a slot. Scheduling a backlog reminder meant retyping its date by hand. NaloFocus already owned both halves (move-a-reminder-to-a-time, searchable picker). Spec: `docs/SPEC.md`, Linear KAH-153.
+**Decision**: Observe `.EKEventStoreChanged` on the app's own `EKEventStore`, snapshot-and-diff incomplete reminder identifiers in a due-date window, and treat a new reminder as a Calendar placeholder only when it was created seconds ago with a timed due date while Calendar was the frontmost app. Show the picker in a floating `NSPanel` with `.nonactivatingPanel` and `canBecomeKey` so Calendar keeps focus. On pick, save the chosen reminder onto the slot and remove the placeholder in one EventKit commit. Ship a menu bar kill switch.
+**Consequences**:
+- ✅ No Calendar UI scraping; survives OS updates
+- ✅ ~350 lines, no dependencies; reuses `ReminderSelectionModal` and the alarm-setting primitive
+- ✅ Measured: 30ms notification latency, panel ~1s after Return, 0 false popups in an 18h soak
+- ✅ Every gate decision is logged (`os.Logger`, subsystem `com.kahunacodes.NaloFocus`)
+- ❌ The placeholder briefly exists, so other Reminders watchers see a create+delete blip
+- ❌ Detection depends on `NSWorkspace.frontmostApplication`; a Cmd-Tab within ~0.6s of Return misses
+- ❌ Requires running as a signed `.app` bundle (TCC + text input), never `swift run`
+**Alternatives Considered**:
+- Hijack Calendar's popover through the Accessibility API: fragile across every OS update
+- Title-string trigger ("New Reminder") as the gate: false positives from other apps; title is now only a search prefill
+- SwiftUI `Window` scene for the picker: scenes cannot be non-activating, so Calendar would lose focus
+- Poll the store on a timer: wasteful; the coalesced change notification plus a 600ms quiescence wait is enough
+
 ---
 
 ## Future Decisions to Make

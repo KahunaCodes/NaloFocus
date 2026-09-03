@@ -59,7 +59,7 @@ install: lint test
 	pkill -x NaloFocus 2>/dev/null || true; \
 	rm -rf /Applications/NaloFocus.app && \
 	ditto "$$APP" /Applications/NaloFocus.app && \
-	echo "✓ NaloFocus installed to /Applications (signed as '$${NALOFOCUS_SIGN_IDENTITY:--}')" && \
+	echo "✓ NaloFocus installed to /Applications" && \
 	echo "  Launch: open /Applications/NaloFocus.app   Login item: System Settings > General > Login Items"
 
 # Run both lint and tests

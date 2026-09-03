@@ -4,9 +4,13 @@ This document tracks known issues and bugs that need to be addressed in future r
 
 ## Active Issues
 
+_(none)_
+
+## Resolved Issues
+
 ### Issue #1: Search TextField Not Accepting Keyboard Input in ReminderSelectionModal
 
-**Status:** Open
+**Status:** Resolved (2026-09-03)
 **Priority:** High
 **Discovered:** 2025-11-17
 **Component:** `ReminderSelectionModal` search functionality
@@ -53,24 +57,10 @@ The search text field should accept keyboard input and filter the reminder list 
 - Search TextField binding and state management
 - Modal presentation in SprintDialogView
 
-**Workaround:**
-None currently available. Search functionality is temporarily non-functional.
+**Resolution (2026-09-03):**
+Not a SwiftUI focus bug. The 2025-11-17 repro ran the bare SwiftPM binary (`swift run` / `run.sh`), which has no bundle and no bundle identifier, so the macOS text input server refuses the process and every `NSTextField` beeps: blinking cursor, no text. The same build launched as a `.app` (`./launch.sh`, which wraps `scripts/bundle.sh`) types normally. Verified on macOS 26.5 with Swift 6.3.3 in both the sprint sheet and the new Calendar slot picker panel.
 
-**Next Steps:**
-1. Review TextField implementation in ReminderSelectionModal
-2. Test focus/responder chain behavior
-3. Investigate SwiftUI modal keyboard handling on macOS
-4. Consider alternative search implementation if needed
-5. Add logging to track focus events and keyboard input
-
-**Priority Justification:**
-High priority because search is a key usability feature for users with many reminders. Without search, finding specific reminders becomes cumbersome and impacts the user experience significantly.
-
----
-
-## Resolved Issues
-
-_(No resolved issues yet)_
+Rule: always run the bundle. The `@FocusState` + `asyncAfter` focus request from `wip/search-focus` was kept (harmless, and it focuses the field on open); the clear-text button stayed too.
 
 ---
 

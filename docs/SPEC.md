@@ -6,26 +6,29 @@ picker so an EXISTING reminder can take that slot instead of the placeholder.
 - Session: `nalo-feat-sched-popup` (main-mac), bound to `~/Projects/kahunacodes/active/NaloFocus`
 - Branch: `feat/calendar-slot-picker` (off `main`)
 - Linear: [KAH-153](https://linear.app/kahunacodes/issue/KAH-153) (Development). Supersedes the canceled KAH-118 (wrong scope, wrong GitHub link).
-- Spec written 2026-09-01. Status: **awaiting DoD sign-off, no implementation yet.**
+- Spec written 2026-09-01, signed off 2026-09-02. Status: **core verified 2026-09-03, v1 scope
+  frozen; step 5 (deploy + burn-in) in progress.**
 
 ## Definition of Done (fill in BEFORE any implementation; get sign-off)
 
-- [ ] Core works end-to-end on main-mac: double-click a Calendar slot, switch to Reminder,
+- [x] Core works end-to-end on main-mac: double-click a Calendar slot, switch to Reminder,
       press Return, the NaloFocus panel appears within ~1s, pick a reminder, the picked
       reminder lands on the slot, the placeholder is gone, Calendar redraws on its own.
-      Escape keeps the placeholder as a normal new reminder.
-- [ ] README section a stranger could run from: build, bundle, sign, install, grant
+      Escape keeps the placeholder as a normal new reminder. *(2026-09-03 03:23, "Tom (Soup)
+      Website" onto the 04:45 slot, panel ~1.0s after Return, verified with reminders-cli)*
+- [x] README section a stranger could run from: build, bundle, sign, install, grant
       Reminders access, toggle the feature, troubleshoot (no panel, TCC re-prompt, log command).
-- [ ] Error handling and logging on failure paths: every EventKit failure logs through
+- [x] Error handling and logging on failure paths: every EventKit failure logs through
       `os.Logger` (subsystem `com.kahunacodes.NaloFocus`); no silent `catch`; a failed fetch
       never stops the watcher; the placeholder is removed only after the picked reminder saved.
-- [ ] Deployed to its actual runtime: `/Applications/NaloFocus.app` on main-mac, built from
+- [x] Deployed to its actual runtime: `/Applications/NaloFocus.app` on main-mac, built from
       the repo `Info.plist`, signed with a stable identity, launched as a Login Item.
-      Not `swift run`.
-- [ ] Secrets externalized: none exist (EventKit only). Stated here so the box is honest.
-- [ ] Burn-in period defined and stated: 7 days of daily use on main-mac (plan below).
-- [ ] Tracking issue closed with a one-line outcome note; `docs/KNOWN_ISSUES.md` #1 updated
-      with whatever the search-field test finds.
+      Not `swift run`. *(2026-09-03, `make install`, signed "NaloFocus Dev", login item added)*
+- [x] Secrets externalized: none exist (EventKit only). Stated here so the box is honest.
+- [x] Burn-in period defined and stated: 7 days of daily use on main-mac, 2026-09-03 to
+      2026-09-10 (plan below).
+- [ ] Tracking issue closed with a one-line outcome note after burn-in (KAH-153).
+      `docs/KNOWN_ISSUES.md` #1 closed 2026-09-03 (bare-binary cause confirmed).
 
 ## Repo / session work (done 2026-09-01, kept here so the next session doesn't redo it)
 
@@ -127,17 +130,27 @@ document "always run the bundle." Second hypothesis if the bundle still beeps: a
 accessory-policy app whose window never became key; fix is `NSApp.activate(ignoringOtherApps:
 true)` when the sprint window opens.
 
-### Unverified assumptions (each resolved by a named build step)
-- **A1 (step 2):** Calendar saves the reminder ONCE, on Return, not on popover open or per
-  keystroke. If it saves early, lengthen the quiescence window or gate on the title
-  stabilising for 1.5s. The spike logs every change with timestamps to settle this.
-- **A2 (step 2):** the change notification arrives within ~100ms of Calendar's commit.
-- **A3 (step 3):** a non-activating panel with `canBecomeKey = true` receives keystrokes in
-  an `LSUIElement` app on macOS 26.5 while Calendar stays frontmost.
-- **A4 (step 1):** TCC re-prompts after every rebuild of an ad-hoc-signed bundle (cdhash
-  changes). A self-signed "NaloFocus Dev" code-signing certificate (Keychain Access,
-  Certificate Assistant, one-time manual step) gives a stable designated requirement.
-  Fallback: `tccutil reset Reminders com.kahunacodes.NaloFocus` before each relaunch.
+### Assumptions, resolved 2026-09-03 on main-mac (macOS 26.5, Swift 6.3.3)
+- **A1 (Calendar save timing): one save, on Return.** The placeholder produced a single
+  0.64s burst and the panel appeared after Return, not while the popover was open.
+  Quiescence stays at 600ms.
+- **A2 (notification latency): 30ms** from the placeholder's `creationDate` to
+  `.EKEventStoreChanged`. Panel on screen ~1.0s after Calendar's save; the fetch and
+  categorize of the 1,274-item store is most of that.
+- **A3 (non-activating panel): holds.** Typing lands in the search field with the front app
+  unchanged (Claude Desktop stayed frontmost); Return picks the first match.
+- **A4 (TCC across rebuilds): an unchanged ad-hoc binary relaunches without a prompt.** A
+  self-signed "NaloFocus Dev" identity was created with `scripts/make-signing-cert.sh` (no
+  GUI prompts were needed) and `scripts/bundle.sh` picks it up automatically; the release
+  install is the first build signed with it. Fallback if a prompt loops:
+  `tccutil reset Reminders com.kahunacodes.NaloFocus`.
+- **KNOWN_ISSUES #1 hypothesis: confirmed.** The sheet's search field types normally from
+  the bundle. Closed in `docs/KNOWN_ISSUES.md`.
+
+Soak before install: the debug bundle ran 17h48m at 23MB, 68 change bursts, 20 new
+reminders seen (phone syncs including a 5-item burst, Reminders.app edits, one Calendar
+placeholder), 1 correct popup, 0 false popups, 0 errors. First live swap: "Tom (Soup)
+Website" onto the 2026-09-03 04:45 slot, placeholder removed, verified with reminders-cli.
 
 ### Files
 

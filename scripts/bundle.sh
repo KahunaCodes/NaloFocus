@@ -14,8 +14,17 @@
 set -euo pipefail
 
 CONFIG="${1:-debug}"
-IDENTITY="${NALOFOCUS_SIGN_IDENTITY:--}"
 BUNDLE_ID="com.kahunacodes.NaloFocus"
+DEV_IDENTITY="NaloFocus Dev"
+
+# Identity: explicit env var > the self-signed dev identity when it exists > ad-hoc
+if [[ -n "${NALOFOCUS_SIGN_IDENTITY:-}" ]]; then
+    IDENTITY="$NALOFOCUS_SIGN_IDENTITY"
+elif security find-identity -v -p codesigning 2>/dev/null | grep -q "\"$DEV_IDENTITY\""; then
+    IDENTITY="$DEV_IDENTITY"
+else
+    IDENTITY="-"
+fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 case "$CONFIG" in

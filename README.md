@@ -42,6 +42,7 @@ NaloFocus is a lightweight macOS menu bar application that transforms your unsch
 - ✅ Works with all Reminder accounts (iCloud, Exchange, Local)
 - ✅ Past due task prioritization
 - ✅ Searchable reminder selection
+- ✅ Calendar slot picker: create a reminder in a Calendar time slot, swap in an existing one
 
 ### Coming Soon
 - 🔜 Custom start times
@@ -70,22 +71,21 @@ NaloFocus is a lightweight macOS menu bar application that transforms your unsch
 
 ### From Source
 
-**⚠️ Important**: NaloFocus is a **Swift Package** executable, not an Xcode project. Use `swift` CLI commands, **never** `xcodebuild`.
+**⚠️ Important**: NaloFocus is a **Swift Package** executable, not an Xcode project. Use `swift` CLI commands, **never** `xcodebuild`. And always run it as a `.app` bundle: a bare `swift run` binary can neither get Reminders access nor accept keyboard input in text fields (no bundle identifier for the text input server).
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/NaloFocus.git
+git clone https://github.com/KahunaCodes/NaloFocus.git
 cd NaloFocus
 
-# Build and run the app
-swift run NaloFocus
-
-# Build for release
-swift build -c release
-
-# Run tests
+./launch.sh                        # debug build, bundled, signed, launched (relaunches a running copy)
+make install                       # lint + test + release bundle -> /Applications/NaloFocus.app
+open /Applications/NaloFocus.app   # grant Reminders access when prompted
 swift test
 ```
+
+Launch at login: System Settings > General > Login Items > add NaloFocus.
+
+**Signing:** `scripts/bundle.sh` signs ad-hoc by default, and macOS forgets an ad-hoc app's Reminders grant on every rebuild. Run `scripts/make-signing-cert.sh` once to create a self-signed "NaloFocus Dev" identity; `bundle.sh` uses it automatically from then on (or set `NALOFOCUS_SIGN_IDENTITY` to any identity you prefer).
 
 ## Usage
 
@@ -106,6 +106,19 @@ swift test
 - **Add breaks** to maintain energy throughout your sprint
 - **Preview timeline** shows exact times before committing
 - **Automatic reset** after each sprint for quick iteration
+
+### Calendar slot picker
+
+Calendar.app can create a reminder in a time slot but cannot drop an *existing* reminder into one. NaloFocus fills that gap:
+
+1. In Calendar, double-click an empty time slot, switch the popover to **Reminder**, press Return.
+2. A floating picker appears next to the cursor within about a second. Calendar keeps focus.
+3. Type to filter and press Return to take the first match, or click a reminder.
+4. That reminder gets the slot's due time and alarm, the placeholder is deleted, and Calendar redraws.
+
+Escape, Cancel, or the close button keeps the placeholder as a normal new reminder. A title typed in Calendar instead of "New Reminder" prefills the search. The **Calendar slot picker** switch in the menu bar turns the feature off.
+
+It only reacts to reminders that appeared while Calendar was the front app, were created seconds earlier, and carry a time. Reminders synced from your phone or edited in Reminders.app never trigger it.
 
 ## Development
 
@@ -163,11 +176,12 @@ swift build
 # Clean build (fixes most issues)
 swift package clean && swift build
 
-# Run with DEBUG mode (window instead of menu bar)
-swift run
+# Run in DEBUG mode (window instead of menu bar), as a bundle
+./launch.sh
 
-# Build for release
-swift build -c release
+# Release bundle in .build/release, or straight into /Applications
+make bundle
+make install
 
 # Reset dependencies
 swift package reset
@@ -204,7 +218,7 @@ The app uses compile-time flags for different UIs:
 #endif
 ```
 
-Run `swift run` for DEBUG mode with a standard window, making UI development easier.
+Run `./launch.sh` for a DEBUG bundle with a standard window, making UI development easier. Plain `swift run` starts a bundle-less binary whose text fields beep and which cannot get Reminders access.
 
 ### Troubleshooting
 
@@ -241,6 +255,17 @@ return try await withCheckedThrowingContinuation { continuation in
     }
 }
 ```
+
+#### Calendar slot picker
+
+- **No panel appears**: check the switch in the menu bar, then watch the log while you create the reminder in Calendar:
+  ```bash
+  log stream --predicate 'subsystem == "com.kahunacodes.NaloFocus"' --level debug
+  ```
+  Every new reminder logs the gate that rejected it: `Calendar not frontmost`, `not freshly created`, `no timed due date`, `echo of our own save`, `picker already open`.
+- **Reminders permission prompt after every rebuild**: the bundle is ad-hoc signed. Run `scripts/make-signing-cert.sh` once (see Installation). If a prompt loops or access reads as denied: `tccutil reset Reminders com.kahunacodes.NaloFocus`, then relaunch.
+- **Text fields beep**: you launched the bare binary. Use `./launch.sh` or the installed app.
+- **Preview the panel without Calendar**: `./launch.sh --env NALOFOCUS_TEST_PANEL=1` shows it with a fake slot one hour out; picks are logged, nothing is saved.
 
 #### Build Issues
 
