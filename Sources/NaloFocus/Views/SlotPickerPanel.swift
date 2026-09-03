@@ -43,6 +43,8 @@ final class SlotPickerController {
     private var model: SlotPickerModel?
     private var onPick: ((EKReminder) -> Void)?
     private var onCancel: (() -> Void)?
+    private var closeObserver: NSObjectProtocol?
+    private var escapeMonitor: Any?
 
     var isPresenting: Bool { panel != nil }
 
@@ -70,6 +72,30 @@ final class SlotPickerController {
         panel.setFrameOrigin(Self.origin(for: size, near: NSEvent.mouseLocation))
         self.panel = panel
 
+        // Any close that did not come through a pick is a cancel. The red close button and Cmd-W
+        // close the window without touching the SwiftUI model, and a missed cancel left the store
+        // watcher paused for good (found 2026-09-03 on the first installed build).
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification,
+            object: panel,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.panel != nil else { return }
+                self.panel = nil   // already closing; dismiss() must not close it again
+                self.finish(with: nil)
+            }
+        }
+        // Escape inside the text field can be swallowed before it reaches the window, so catch it
+        // at the event level while this panel is key.
+        escapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard event.keyCode == 53, let panel = self?.panel, panel.isKeyWindow else { return event }
+                self?.finish(with: nil)
+                return nil
+            }
+        }
+
         panel.makeKeyAndOrderFront(nil)
         // SwiftUI's @FocusState asks for focus on appear; this is the AppKit belt to that brace
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak panel, weak hosting] in
@@ -79,11 +105,21 @@ final class SlotPickerController {
     }
 
     func dismiss() {
+        if let closeObserver {
+            NotificationCenter.default.removeObserver(closeObserver)
+        }
+        closeObserver = nil
+        if let escapeMonitor {
+            NSEvent.removeMonitor(escapeMonitor)
+        }
+        escapeMonitor = nil
         onPick = nil
         onCancel = nil
         model = nil
-        panel?.close()
+        // Detach before closing so our own close cannot re-enter through the observer
+        let closing = panel
         panel = nil
+        closing?.close()
     }
 
     private func finish(with reminder: EKReminder?) {
