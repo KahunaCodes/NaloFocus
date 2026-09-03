@@ -152,6 +152,15 @@ reminders seen (phone syncs including a 5-item burst, Reminders.app edits, one C
 placeholder), 1 correct popup, 0 false popups, 0 errors. First live swap: "Tom (Soup)
 Website" onto the 2026-09-03 04:45 slot, placeholder removed, verified with reminders-cli.
 
+Found on the first installed build, same day: (1) in menu bar mode the Reminders request
+only ran when the icon was first clicked, so the app sat without access or watcher
+(`6039629`, request moved to launch); (2) closing the panel with the red close button
+never reported cancel, leaving the watcher paused for every later placeholder until
+relaunch (`7af8e62`, any close without a pick is a cancel, plus an event-level Escape
+monitor; verified by hand: Escape and close both cancel, the next placeholder triggers
+again); (3) the segmented picker's label wrapped at 440pt (`1a6cd9c`). Picker sorting and
+search-across-tabs ideas filed as KAH-155 (v2).
+
 ### Files
 
 | File | Change |
