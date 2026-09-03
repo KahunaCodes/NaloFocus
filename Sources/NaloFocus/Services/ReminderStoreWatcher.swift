@@ -26,6 +26,7 @@ final class ReminderStoreWatcher {
     private let reminderManager: ReminderManagerProtocol
     private let logger = Logger(subsystem: AppConstants.Logging.subsystem, category: "watcher")
     private var observer: NSObjectProtocol?
+    private var isStarting = false
     private var knownIdentifiers: Set<String> = []
     private var quiescenceTask: Task<Void, Never>?
     private var burstStartedAt: Date?
@@ -42,8 +43,11 @@ final class ReminderStoreWatcher {
     }
 
     func start() async {
-        guard observer == nil else { return }
+        guard observer == nil, !isStarting else { return }
+        isStarting = true
+        defer { isStarting = false }
         await refreshSnapshot(report: nil)
+        guard observer == nil else { return }
         observer = NotificationCenter.default.addObserver(
             forName: .EKEventStoreChanged,
             object: reminderManager.eventStore,

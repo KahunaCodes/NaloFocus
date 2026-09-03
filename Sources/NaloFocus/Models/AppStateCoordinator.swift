@@ -27,6 +27,10 @@ class AppStateCoordinator: ObservableObject {
         let defaults = UserDefaults.standard
         defaults.register(defaults: [AppConstants.SlotPicker.enabledDefaultsKey: true])
         slotPickerEnabled = defaults.bool(forKey: AppConstants.SlotPicker.enabledDefaultsKey)
+
+        // Ask at launch in both DEBUG (window) and RELEASE (menu bar) modes so the store watcher
+        // runs before any UI is opened. The menu's "Grant Reminders Access" button re-asks on demand.
+        Task { await self.requestPermissions() }
     }
 
     func requestPermissions() async {

@@ -18,22 +18,17 @@ struct NaloFocusApp: App {
             SprintDialogView()
                 .environmentObject(coordinator)
                 .frame(minWidth: 800, minHeight: 600)
-                .task {
-                    // Request permissions on app launch
-                    await coordinator.requestPermissions()
-                }
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 800, height: 600)
         #else
         // Production mode: Menu bar app
+        // Reminders access is requested by AppStateCoordinator at launch, not here: a MenuBarExtra's
+        // content only appears (and runs its .task) when the icon is first clicked, and the Calendar
+        // slot picker needs the store watcher running from the moment the app starts.
         MenuBarExtra("NaloFocus", systemImage: "timer") {
             MenuBarContentView()
                 .environmentObject(coordinator)
-                .task {
-                    // Request permissions on app launch
-                    await coordinator.requestPermissions()
-                }
         }
         .menuBarExtraStyle(.window)
 
